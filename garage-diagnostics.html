@@ -231,7 +231,7 @@ var BYCODE={};DTC.forEach(function(r){BYCODE[r[0]]=r});
 
 /* ---------- State ---------- */
 var KEY="garage-diagnostics-v1";
-var S={tab:"vehicle",mode:"vin",vehicles:[],active:null,recent:[],notes:{},marks:[],steps:{},code:null,proc:null,vin:"",draft:null,msg:null,busy:false,paste:"",mview:"",live:{},conn:null,ymm:blankForm(),editing:null,eform:null,confirm:null,q:"",mq:"",vol:null,sec:null,mpath:[],mid:null,midFor:null,pfrom:null};
+var S={tab:"vehicle",mode:"vin",vehicles:[],active:null,recent:[],notes:{},marks:[],steps:{},code:null,proc:null,vin:"",draft:null,msg:null,busy:false,paste:"",embed:null,mview:"",live:{},conn:null,ymm:blankForm(),editing:null,eform:null,confirm:null,q:"",mq:"",vol:null,sec:null,mpath:[],mid:null,midFor:null,pfrom:null};
 function load(){try{var d=JSON.parse(localStorage.getItem(KEY)||"null");if(d){["vehicles","active","recent","notes","marks","steps"].forEach(function(k){if(d[k]!==undefined)S[k]=d[k]})}}catch(e){}}
 function save(){try{localStorage.setItem(KEY,JSON.stringify({vehicles:S.vehicles,active:S.active,recent:S.recent,notes:S.notes,marks:S.marks,steps:S.steps}))}catch(e){}}
 load();
@@ -1070,7 +1070,7 @@ function liveErr(e){
 }
 function liveState(){
   var v=activeV(),L=S.live;
-  if(!L||L.vid!==(v&&v.id)){S.live=L={vid:v&&v.id,stack:[],choices:null,busy:false,err:"",note:"",pending:null}}
+  if(!L||L.vid!==(v&&v.id)){S.embed=null;S.live=L={vid:v&&v.id,stack:[],choices:null,busy:false,err:"",note:"",pending:null}}
   return L;
 }
 function defaultView(v){var mf=v?manualFor(v):null;return mf&&mf.fit==="yes"?"local":"live"}
@@ -1108,7 +1108,7 @@ async function liveLoad(){
       if(best.length===1)await liveChoose(best[0]);
       else{L.choices=ch;L.stack=[]}
     }
-  }catch(e){L.err=liveErr(e)}
+  }catch(e){L.err=liveErr(e);if(netErr(e)){S.embed=mkEmbed(v,L.pending);L.err=""}}
   L.busy=false;render(true);
 }
 function liveAuto(){
@@ -1135,15 +1135,42 @@ async function liveFindDtc(code){
       pg=await lfetch(nx.url);stack.push({url:nx.url,title:pg.title});
     }
     L.stack=stack;L.choices=null;
-  }catch(e){L.err=liveErr(e)}
+  }catch(e){L.err=liveErr(e);if(netErr(e)){S.embed=mkEmbed(v,code);L.err=""}}
   L.busy=false;render(true);
+}
+function netErr(e){return !(e&&e.code)}
+function layoutCode(v){var l=v.layout||"";if(/^I\d/.test(l))return"L"+l.slice(1);if(/^[VHW]\d/.test(l))return l;return""}
+function yearUrl(v){return SITE+encodeURIComponent(makeDir(v.make))+"/"+v.year+"/"}
+function guessRoot(v){var lc=layoutCode(v);if(!v.disp||!lc)return"";return yearUrl(v)+encodeURIComponent(v.model+" "+lc+"-"+v.disp+"L")+"/"}
+function guessDtc(v,code){
+  var r=v.liveRoot||guessRoot(v);if(!r||!code)return"";
+  return r+"Repair%20and%20Diagnosis/A%20L%20L%20%20Diagnostic%20Trouble%20Codes%20(%20DTC%20)/Testing%20and%20Inspection/"+encodeURIComponent(code[0]+" Code Charts")+"/"+code+"/";
+}
+function mkEmbed(v,code){
+  var d=code&&guessDtc(v,code);
+  if(d)return{url:d,label:"Trouble code "+code,code:code};
+  var r=v.liveRoot||guessRoot(v);
+  return{url:r||yearUrl(v),label:r?"Vehicle manual":"Year list",code:code||""};
+}
+function embedHtml(v){
+  var E=S.embed,rt=v.liveRoot||guessRoot(v);
+  var h='<div class="info">Showing lemon-manuals.la inside the app: '+esc(E.label)+'. The addresses for the vehicle and code pages are guessed from the site\'s usual layout, so a page may be missing. Use the buttons to move around, or the site\'s own links inside the frame.</div>'
+   +'<div class="chips">'
+   +(rt?'<button class="chip'+(E.url===rt?" on":"")+'" data-act="embed" data-k="root">Vehicle manual</button>':'')
+   +'<button class="chip'+(E.url===yearUrl(v)?" on":"")+'" data-act="embed" data-k="year">Year list</button>'
+   +(E.code?'<button class="chip'+(E.label.indexOf("Trouble")===0?" on":"")+'" data-act="embed" data-k="dtc">Code '+esc(E.code)+'</button>':'')
+   +'<button class="chip" data-act="embed" data-k="close">Close frame</button></div>'
+   +'<iframe title="lemon-manuals.la" src="'+esc(E.url)+'" referrerpolicy="no-referrer" sandbox="allow-same-origin allow-scripts allow-forms" style="width:100%;height:68vh;border:1px solid var(--line);border-radius:10px;background:#fff"></iframe>'
+   +'<div class="small muted">If the frame stays blank, lemon-manuals.la does not allow being shown inside other pages. <a href="'+esc(E.url)+'" target="_blank" rel="noopener">Open this page in a browser tab</a> instead.</div>';
+  return h;
 }
 function liveBody(){
   var v=activeV(),L=liveState();
+  if(S.embed)return embedHtml(v);
   var site='<a href="'+SITE+encodeURIComponent(makeDir(v.make))+'/'+v.year+'/" target="_blank" rel="noopener">Open lemon-manuals.la</a>';
   if(L.busy)return'<div class="info">Loading from lemon-manuals.la. This can be slow.</div>';
   var h="";
-  if(L.err)h+='<div class="note">'+esc(L.err)+'</div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn sec" data-act="liveload">Try again</button></div><div class="small muted">'+site+' in a new tab.</div>';
+  if(L.err)h+='<div class="note">'+esc(L.err)+'</div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn sec" data-act="liveload">Try again</button><button class="btn sec" data-act="embed" data-k="open">Show the site in the app</button></div><div class="small muted">'+site+' in a new tab.</div>';
   if(L.choices){
     h+='<h2>Choose your variant</h2><div class="small muted">lemon-manuals.la lists these for a '+esc(v.year+" "+v.make+" "+v.model)+'. Pick the engine your vehicle has.</div><div class="list" style="gap:8px">'
      +L.choices.map(function(k,i){return'<button class="row" data-act="lpick" data-i="'+i+'"><span class="rt">'+esc(k.text)+'</span></button>'}).join("")+'</div>';
@@ -1157,7 +1184,7 @@ function liveBody(){
   var pg=LCACHE[cur.url];
   if(!pg)return h;
   h+='<div class="small muted" style="word-break:break-word">'+L.stack.map(function(x){return esc(x.title)}).join(" › ")+'</div>';
-  h+='<div style="display:flex;gap:8px;flex-wrap:wrap">'+(L.stack.length>1?'<button class="btn sec" data-act="lback">Back</button>':'')+'<button class="btn sec" data-act="lvariant">Change variant</button></div>';
+  h+='<div style="display:flex;gap:8px;flex-wrap:wrap">'+(L.stack.length>1?'<button class="btn sec" data-act="lback">Back</button>':'')+'<button class="btn sec" data-act="lvariant">Change variant</button><button class="btn sec" data-act="embed" data-k="open">Show the site</button></div>';
   if(L.note)h+='<div class="info">'+esc(L.note)+'</div>';
   h+='<section class="card"><h2 class="sect">'+esc(pg.title)+'</h2>'
    +(pg.lines.length?pg.lines.map(function(l){return'<p style="margin:0 0 8px;line-height:1.5">'+esc(l)+'</p>'}).join(""):'<div class="small muted">This page only lists sections below.</div>')+'</section>';
@@ -1228,6 +1255,18 @@ document.addEventListener("click",async function(e){
   else if(a==="lvariant"){var v5=activeV();if(v5){v5.liveRoot="";save();var L5=liveState();L5.stack=[];L5.choices=null;L5.err="";await liveLoad()}}
   else if(a==="livedtc"){S.tab="manuals";S.mview="live";S.proc=null;S.pfrom=null;render();await liveFindDtc(d.code)}
   else if(a==="conn"){await checkConn()}
+  else if(a==="embed"){
+    var ve=activeV();
+    if(ve){
+      var code0=(S.embed&&S.embed.code)||"";
+      if(d.k==="close")S.embed=null;
+      else if(d.k==="open")S.embed=mkEmbed(ve,"");
+      else if(d.k==="year")S.embed={url:yearUrl(ve),label:"Year list",code:code0};
+      else if(d.k==="root")S.embed={url:ve.liveRoot||guessRoot(ve),label:"Vehicle manual",code:code0};
+      else if(d.k==="dtc"&&code0)S.embed=mkEmbed(ve,code0);
+      render(true)
+    }
+  }
   else if(a==="scan"){var inp=document.getElementById("scan");if(inp)inp.click()}
   else if(a==="aifill"){var fa=formTarget();if(fa)await aiOptions(fa)}
   else if(a==="pickcfg"){
