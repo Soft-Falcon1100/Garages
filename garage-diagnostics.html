@@ -231,7 +231,7 @@ var BYCODE={};DTC.forEach(function(r){BYCODE[r[0]]=r});
 
 /* ---------- State ---------- */
 var KEY="garage-diagnostics-v1";
-var S={tab:"vehicle",mode:"vin",vehicles:[],active:null,recent:[],notes:{},marks:[],steps:{},code:null,proc:null,vin:"",draft:null,msg:null,busy:false,paste:"",embed:null,mview:"",live:{},conn:null,ymm:blankForm(),editing:null,eform:null,confirm:null,q:"",mq:"",vol:null,sec:null,mpath:[],mid:null,midFor:null,pfrom:null};
+var S={tab:"vehicle",mode:"vin",vehicles:[],active:null,recent:[],notes:{},marks:[],steps:{},code:null,proc:null,vin:"",draft:null,msg:null,busy:false,paste:"",embed:null,embedurl:"",emsg:"",mview:"",live:{},conn:null,ymm:blankForm(),editing:null,eform:null,confirm:null,q:"",mq:"",vol:null,sec:null,mpath:[],mid:null,midFor:null,pfrom:null};
 function load(){try{var d=JSON.parse(localStorage.getItem(KEY)||"null");if(d){["vehicles","active","recent","notes","marks","steps"].forEach(function(k){if(d[k]!==undefined)S[k]=d[k]})}}catch(e){}}
 function save(){try{localStorage.setItem(KEY,JSON.stringify({vehicles:S.vehicles,active:S.active,recent:S.recent,notes:S.notes,marks:S.marks,steps:S.steps}))}catch(e){}}
 load();
@@ -1154,14 +1154,18 @@ function mkEmbed(v,code){
 }
 function embedHtml(v){
   var E=S.embed,rt=v.liveRoot||guessRoot(v);
-  var h='<div class="info">Showing lemon-manuals.la inside the app: '+esc(E.label)+'. The addresses for the vehicle and code pages are guessed from the site\'s usual layout, so a page may be missing. Use the buttons to move around, or the site\'s own links inside the frame.</div>'
+  var h='<div class="info">Showing lemon-manuals.la inside the app: '+esc(E.label)+'. Pages the app guesses from the site\'s usual layout may be missing. If you see an error in the frame, tap Year list, find your exact engine there, and save its address below.</div>'
    +'<div class="chips">'
-   +(rt?'<button class="chip'+(E.url===rt?" on":"")+'" data-act="embed" data-k="root">Vehicle manual</button>':'')
+   +(rt?'<button class="chip'+(E.url===rt?" on":"")+'" data-act="embed" data-k="root">Vehicle manual</button><button class="chip'+(E.url===rt+"Repair%20and%20Diagnosis/"?" on":"")+'" data-act="embed" data-k="diag">Repair and Diagnosis</button>':'')
    +'<button class="chip'+(E.url===yearUrl(v)?" on":"")+'" data-act="embed" data-k="year">Year list</button>'
    +(E.code?'<button class="chip'+(E.label.indexOf("Trouble")===0?" on":"")+'" data-act="embed" data-k="dtc">Code '+esc(E.code)+'</button>':'')
    +'<button class="chip" data-act="embed" data-k="close">Close frame</button></div>'
    +'<iframe title="lemon-manuals.la" src="'+esc(E.url)+'" referrerpolicy="no-referrer" sandbox="allow-same-origin allow-scripts allow-forms" style="width:100%;height:68vh;border:1px solid var(--line);border-radius:10px;background:#fff"></iframe>'
-   +'<div class="small muted">If the frame stays blank, lemon-manuals.la does not allow being shown inside other pages. <a href="'+esc(E.url)+'" target="_blank" rel="noopener">Open this page in a browser tab</a> instead.</div>';
+   +'<div class="small muted"><a href="'+esc(E.url)+'" target="_blank" rel="noopener">Open this page in a browser tab</a>, which also lets you copy its address.</div>'
+   +'<details class="vinparts"'+(v.liveRoot?"":" open")+'><summary>Save the right manual address</summary><div class="small muted" style="padding-bottom:8px">'+(v.liveRoot?'Saved for this vehicle. ':'')+'Paste the address of any page inside your vehicle\'s manual, like https://lemon-manuals.la/Ford/2005/Focus%20L4-2.0L/. The app keeps the vehicle part and uses it for the Vehicle manual, Repair and Diagnosis and Code buttons.</div>'
+   +'<label for="embedurl">Page address<input id="embedurl" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="https://lemon-manuals.la/..." value="'+esc(S.embedurl)+'"></label>'
+   +(S.emsg?'<div class="note">'+esc(S.emsg)+'</div>':'')
+   +'<button class="btn sec" data-act="embedset">Save this address</button></details>';
   return h;
 }
 function liveBody(){
@@ -1258,13 +1262,27 @@ document.addEventListener("click",async function(e){
   else if(a==="embed"){
     var ve=activeV();
     if(ve){
-      var code0=(S.embed&&S.embed.code)||"";
-      if(d.k==="close")S.embed=null;
-      else if(d.k==="open")S.embed=mkEmbed(ve,"");
-      else if(d.k==="year")S.embed={url:yearUrl(ve),label:"Year list",code:code0};
-      else if(d.k==="root")S.embed={url:ve.liveRoot||guessRoot(ve),label:"Vehicle manual",code:code0};
-      else if(d.k==="dtc"&&code0)S.embed=mkEmbed(ve,code0);
-      render(true)
+      var code0=(S.embed&&S.embed.code)||"",cur0=S.embed&&S.embed.url,nx=null;
+      if(d.k==="close"){S.embed=null;render(true)}
+      else{
+        if(d.k==="open")nx=mkEmbed(ve,"");
+        else if(d.k==="year")nx={url:yearUrl(ve),label:"Year list",code:code0};
+        else if(d.k==="root")nx={url:ve.liveRoot||guessRoot(ve),label:"Vehicle manual",code:code0};
+        else if(d.k==="diag")nx={url:(ve.liveRoot||guessRoot(ve))+"Repair%20and%20Diagnosis/",label:"Repair and Diagnosis",code:code0};
+        else if(d.k==="dtc"&&code0)nx=mkEmbed(ve,code0);
+        if(nx&&nx.url&&nx.url!==cur0){S.embed=nx;render(true)}
+      }
+    }
+  }
+  else if(a==="embedset"){
+    var vs=activeV(),u9=null;
+    try{u9=new URL(S.embedurl.trim())}catch(e){}
+    var segs=u9?u9.pathname.split("/").filter(Boolean):[];
+    if(!u9||u9.hostname.replace(/^www\./,"")!=="lemon-manuals.la"||segs.length<3){S.emsg="That does not look like a lemon-manuals.la manual page. It should look like https://lemon-manuals.la/Make/Year/Model/.";render(true)}
+    else if(vs){
+      S.emsg="";vs.liveRoot=u9.origin+"/"+segs.slice(0,3).join("/")+"/";
+      var vseg=decodeURIComponent(segs[2]);applyVariant(vs,vseg);save();
+      var c9=(S.embed&&S.embed.code)||"";S.embed=mkEmbed(vs,c9);S.embedurl="";render(true)
     }
   }
   else if(a==="scan"){var inp=document.getElementById("scan");if(inp)inp.click()}
@@ -1329,6 +1347,7 @@ document.addEventListener("input",function(e){
   else if(id==="mq"){S.mq=t.value;document.getElementById("mres").innerHTML=manualBody()}
   else if(id==="vin"){S.vin=t.value.toUpperCase();S.draft=null}
   else if(id==="paste"){S.paste=t.value}
+  else if(id==="embedurl"){S.embedurl=t.value}
   else if(id==="fTrim"||id==="fCustom"){var ft=formTarget();if(ft)ft[FIELD[id]]=t.value}
   else if(id==="note"){S.notes[t.dataset.key]=t.value;save()}
 });
