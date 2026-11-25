@@ -1,0 +1,1543 @@
+<title>Garage Diagnostics</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&family=Space+Grotesk:wght@500;600&display=swap">
+<style>
+/* Layout: one phone-width column, three tabs along the bottom (Vehicle, Codes, Manuals), drill-in screens for a code and its procedure. */
+:root{
+  --bg:#EDF0F2; --surface:#FFFFFF; --surface2:#E3E8EB; --ink:#141A1F; --muted:#55606A; --line:#D3DAE0;
+  --accent:#0A6C8C; --accent-ink:#FFFFFF; --panel:#101A21; --panel-ink:#EAF1F5; --panel-muted:#9DB0BC;
+  --ok:#1E6B3F; --ok-bg:#DDF0E4; --warn:#7A4F00; --warn-bg:#FBEBC8; --bad:#A3231B; --bad-bg:#F9DEDC;
+  --display:'Space Grotesk',system-ui,sans-serif; --body:'Inter',system-ui,sans-serif; --mono:'JetBrains Mono',ui-monospace,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0E1418; --surface:#161E24; --surface2:#1F2930; --ink:#E8EEF2; --muted:#9AA8B3; --line:#2A353D;
+  --accent:#4FB6D6; --accent-ink:#06222D; --panel:#1B2A34; --panel-ink:#EAF1F5; --panel-muted:#9DB0BC;
+  --ok:#7FD6A0; --ok-bg:#12301F; --warn:#F2C463; --warn-bg:#3A2C08; --bad:#FF9A92; --bad-bg:#3C1512; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0E1418; --surface:#161E24; --surface2:#1F2930; --ink:#E8EEF2; --muted:#9AA8B3; --line:#2A353D;
+  --accent:#4FB6D6; --accent-ink:#06222D; --panel:#1B2A34; --panel-ink:#EAF1F5; --panel-muted:#9DB0BC;
+  --ok:#7FD6A0; --ok-bg:#12301F; --warn:#F2C463; --warn-bg:#3A2C08; --bad:#FF9A92; --bad-bg:#3C1512; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.45;padding-block:0 96px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:560px;margin:0 auto;display:flex;flex-direction:column;gap:14px;padding-top:20px}
+h1,h2,h3{font-family:var(--display);margin:0;text-wrap:balance}
+h1{font-size:28px;line-height:1.1;font-weight:600}
+h2{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-family:var(--body);font-weight:600}
+.eyebrow{font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.panel{background:var(--panel);color:var(--panel-ink);border-radius:18px;padding:18px;display:flex;flex-direction:column;gap:14px}
+.panel .muted{color:var(--panel-muted)}
+.muted{color:var(--muted)}
+.small{font-size:13px}
+.mono{font-family:var(--mono)}
+button,input,select,textarea{font:inherit;color:inherit}
+.btn{min-height:46px;padding:0 16px;border:0;border-radius:10px;background:var(--accent);color:var(--accent-ink);font-weight:600;cursor:pointer}
+.btn.sec{background:transparent;color:var(--ink);border:1px solid var(--line)}
+.btn.quiet{background:transparent;color:var(--accent);padding:0 6px;min-height:44px}
+.btn:disabled{opacity:.55;cursor:default}
+.btn:focus-visible,.row:focus-visible,.tab:focus-visible,.chip:focus-visible,.seg button:focus-visible,.step:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+input,select,textarea{width:100%;min-height:46px;border:1px solid var(--line);border-radius:10px;background:var(--surface);padding:0 12px}
+textarea{padding:10px 12px;min-height:90px;resize:vertical}
+label{font-size:13px;font-weight:600;color:var(--muted);display:flex;flex-direction:column;gap:5px}
+.seg{display:flex;gap:4px;background:var(--surface2);border-radius:10px;padding:4px}
+.seg button{flex:1;min-height:40px;border:0;border-radius:8px;background:transparent;font-weight:500;cursor:pointer;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--bg);font-weight:600}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 14px}
+.kv .k{font-size:12px;color:var(--panel-muted)} .kv .v{font-weight:500}
+.chips{display:flex;gap:8px;flex-wrap:wrap}
+.chip{min-height:44px;display:inline-flex;align-items:center;padding:0 14px;border-radius:999px;border:1px solid var(--line);background:var(--surface);font-family:var(--mono);font-size:14px;cursor:pointer}
+.chip.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.row{width:100%;text-align:left;min-height:56px;display:flex;align-items:center;gap:12px;padding:8px 14px;border:1px solid var(--line);border-radius:12px;background:var(--surface);cursor:pointer}
+.row .code{font-family:var(--mono);font-size:15px;min-width:54px}
+.row .rt{flex:1;min-width:0;font-size:14px;line-height:1.3}
+.list{display:flex;flex-direction:column;gap:8px}
+.pill{display:inline-block;font-size:12px;font-weight:600;border-radius:999px;padding:3px 10px;white-space:nowrap}
+.sev1{background:var(--ok-bg);color:var(--ok)} .sev2{background:var(--warn-bg);color:var(--warn)} .sev3{background:var(--bad-bg);color:var(--bad)}
+.tag{background:var(--surface2);color:var(--muted)}
+.note{background:var(--warn-bg);color:var(--warn);border-radius:10px;padding:10px 12px;font-size:13px}
+.info{background:var(--surface2);color:var(--muted);border-radius:10px;padding:10px 12px;font-size:13px}
+.err{background:var(--bad-bg);color:var(--bad);border-radius:10px;padding:10px 12px;font-size:13px}
+.good{background:var(--ok-bg);color:var(--ok);border-radius:10px;padding:10px 12px;font-size:13px}
+.back{align-self:flex-start;min-height:44px;display:inline-flex;align-items:center;gap:6px;border:0;background:transparent;color:var(--muted);font-weight:500;cursor:pointer;padding:0}
+.bigcode{font-family:var(--mono);font-size:34px;font-weight:500;letter-spacing:-.01em;line-height:1}
+.step{width:100%;text-align:left;display:flex;gap:12px;padding:10px 0;border:0;border-top:1px solid var(--line);background:transparent;cursor:pointer;align-items:flex-start;min-height:56px}
+.step:first-of-type{border-top:0}
+.box{flex:none;width:26px;height:26px;border-radius:8px;border:2px solid var(--muted);display:flex;align-items:center;justify-content:center;margin-top:1px;color:transparent}
+.step[aria-checked="true"] .box{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.step[aria-checked="true"] .st{color:var(--muted);text-decoration:line-through}
+.st{font-weight:600}
+ul.tight{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px}
+.tabs{position:fixed;left:0;right:0;bottom:0;background:var(--surface);border-top:1px solid var(--line);padding:6px max(8px,env(safe-area-inset-right,0px)) calc(8px + env(safe-area-inset-bottom,0px)) max(8px,env(safe-area-inset-left,0px));z-index:5}
+.tabs div{max-width:560px;margin:0 auto;display:flex}
+.tab{flex:1;min-height:52px;border:0;background:transparent;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:var(--muted);font-size:12px;font-weight:500;cursor:pointer}
+.tab[aria-current="page"]{color:var(--accent);font-weight:600}
+a{color:var(--accent)}
+@media (prefers-reduced-motion:no-preference){.card,.panel{animation:in .18s ease-out}@keyframes in{from{opacity:.4;transform:translateY(4px)}to{opacity:1;transform:none}}}
+.ref{display:inline;min-height:28px;padding:3px 8px;margin:0 1px;border:0;border-radius:6px;background:var(--surface2);color:var(--accent);font-weight:600;font-size:inherit;line-height:inherit;cursor:pointer}
+.ref:focus-visible,.mbox:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.mstep{display:flex;gap:8px;padding:12px 0;border-top:1px solid var(--line);scroll-margin-top:16px;border-radius:8px}
+.mstep:first-child{border-top:0}
+.mbox{flex:none;width:44px;height:44px;margin:-9px 0 -9px -9px;border:0;background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0}
+.mbox[aria-checked="true"] .box{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.mbox .box{margin:0}
+.mbody{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px}
+.num{display:inline-block;min-width:26px;margin-right:6px;font-family:var(--mono);font-size:13px;color:var(--muted)}
+.mtext{font-weight:500}
+.mstep.done .mtext{color:var(--muted)}
+.br{font-size:14px;display:flex;gap:8px;align-items:flex-start;line-height:1.5}
+.br b{flex:none;font-size:11px;letter-spacing:.04em;text-transform:uppercase;border-radius:6px;padding:2px 7px;margin-top:3px}
+.br.y b{background:var(--ok-bg);color:var(--ok)}
+.br.n b{background:var(--bad-bg);color:var(--bad)}
+details.card>summary{min-height:44px;display:flex;align-items:center;cursor:pointer;font-weight:600}
+details.card>summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media (prefers-reduced-motion:no-preference){.flash{animation:flash 1.4s ease-out}@keyframes flash{from{background:var(--warn-bg)}to{background:transparent}}}
+.crumbs{display:flex;flex-wrap:wrap;align-items:center;gap:0 4px;font-size:13px;color:var(--muted)}
+.crumb{min-height:36px;padding:4px 4px;border:0;background:transparent;color:var(--accent);font-weight:600;font-size:13px;cursor:pointer}
+.crumb:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.crumbs .here{font-weight:600;color:var(--ink)}
+.sect{font-family:var(--display);font-size:20px;line-height:1.25;text-transform:none;letter-spacing:0;color:var(--ink);font-weight:600;margin:0}
+.spec{display:flex;flex-direction:column;gap:2px;padding:10px 0;border-top:1px solid var(--line)}
+.spec:first-child{border-top:0;padding-top:0}
+.spec .k{font-size:13px;color:var(--muted)}
+.spec .v{font-weight:600}
+.pstep{display:flex;gap:8px;padding:10px 0;border-top:1px solid var(--line);line-height:1.5;scroll-margin-top:16px;border-radius:8px}
+.pstep:first-child{border-top:0;padding-top:0}
+.pstep .num{margin-right:0}
+.vinparts>summary{min-height:44px;display:flex;align-items:center;cursor:pointer;font-weight:600}
+.vinparts>summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.vp{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-top:1px solid color-mix(in srgb,currentColor 18%,transparent);font-size:13px;line-height:1.4}
+.vp .k{opacity:.75}
+.vp .v{text-align:right;min-width:0;overflow-wrap:anywhere}
+a.btn{text-decoration:none;display:inline-flex;align-items:center;justify-content:center}
+textarea{width:100%;box-sizing:border-box;font:inherit;color:inherit;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px;min-height:96px;resize:vertical}
+</style>
+
+<main id="main" class="wrap" aria-live="polite"></main>
+<nav class="tabs" aria-label="Main"><div id="tabs"></div></nav>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
+<script>
+/* ---------- Data ---------- */
+var MAKES={Acura:["ILX","MDX","RDX","TLX"],Audi:["A3","A4","A6","Q5"],BMW:["3 Series","5 Series","X3","X5"],Buick:["Enclave","Encore","LaCrosse"],Cadillac:["CTS","Escalade","XT5"],Chevrolet:["Camaro","Colorado","Equinox","Impala","Malibu","Silverado 1500","Tahoe"],Chrysler:["200","300","Pacifica"],Dodge:["Challenger","Charger","Durango","Grand Caravan"],Ford:["Edge","Escape","Explorer","F-150","Focus","Fusion","Mustang"],GMC:["Acadia","Sierra 1500","Terrain"],Honda:["Accord","Civic","CR-V","Element","Fit","Insight","Odyssey","Pilot","S2000"],Hyundai:["Elantra","Santa Fe","Sonata","Tucson"],Jeep:["Cherokee","Grand Cherokee","Wrangler"],Kia:["Forte","Optima","Sorento","Soul"],Lexus:["ES","IS","RX"],Lincoln:["MKZ","Navigator","Town Car"],Mazda:["Mazda3","Mazda6","CX-5"],"Mercedes-Benz":["C-Class","E-Class","GLC"],Nissan:["Altima","Frontier","Maxima","Rogue","Sentra"],Ram:["1500","2500"],Subaru:["Forester","Impreza","Legacy","Outback"],Tesla:["Model 3","Model S","Model Y"],Toyota:["Camry","Corolla","Highlander","RAV4","Tacoma","Tundra"],Volkswagen:["Golf","Jetta","Passat"],Volvo:["S60","XC60","XC90"]};
+var WMI={"1HG":"Honda","2HG":"Honda","JHM":"Honda","19X":"Honda","5J6":"Honda","5FN":"Honda","1FA":"Ford","1FT":"Ford","1FM":"Ford","1FD":"Ford","3FA":"Ford","1G1":"Chevrolet","1GC":"Chevrolet","2G1":"Chevrolet","3GN":"Chevrolet","1GT":"GMC","1GK":"GMC","1GY":"Cadillac","1G6":"Cadillac","1G4":"Buick","5GA":"Buick","KL4":"Buick","1C3":"Chrysler","2C3":"Chrysler","1C6":"Ram","3C6":"Ram","3D7":"Ram","1D7":"Dodge","1B3":"Dodge","2B3":"Dodge","1J4":"Jeep","1J8":"Jeep","1N4":"Nissan","1N6":"Nissan","3N1":"Nissan","JN1":"Nissan","JN8":"Nissan","5N1":"Nissan","4T1":"Toyota","4T3":"Toyota","5TD":"Toyota","5TF":"Toyota","JTD":"Toyota","JTM":"Toyota","2T1":"Toyota","JT3":"Toyota","5YJ":"Tesla","7SA":"Tesla","5NP":"Hyundai","KMH":"Hyundai","5NM":"Hyundai","KNA":"Kia","KND":"Kia","5XY":"Kia","3VW":"Volkswagen","WVW":"Volkswagen","1VW":"Volkswagen","WBA":"BMW","WBY":"BMW","5UX":"BMW","WDB":"Mercedes-Benz","WDD":"Mercedes-Benz","4JG":"Mercedes-Benz","WAU":"Audi","WA1":"Audi","JF1":"Subaru","JF2":"Subaru","4S3":"Subaru","4S4":"Subaru","JM1":"Mazda","JM3":"Mazda","3MZ":"Mazda","5LM":"Lincoln","2LM":"Lincoln","YV1":"Volvo","JH4":"Acura","19U":"Acura","2HN":"Acura","JTH":"Lexus","2T2":"Lexus"};
+var COUNTRY={"1":"United States","4":"United States","5":"United States","2":"Canada","3":"Mexico","J":"Japan","K":"South Korea","S":"United Kingdom","W":"Germany","V":"France or Spain","Y":"Sweden or Finland","Z":"Italy","L":"China","9":"Brazil","6":"Australia"};
+var SYSLAB={Engine:"Engine",Fuel:"Fuel system",Ignition:"Ignition",Air:"Air intake",Cooling:"Cooling",Emissions:"Emissions",Electrical:"Electrical",Network:"Network",Transmission:"Transmission"};
+/* code, title, system, urgency 1-3, procedure family, common causes */
+var DTC=[
+["P0016","Crankshaft and camshaft position correlation, bank 1 sensor A","Engine",2,"cam","Stretched timing chain or belt;Faulty cam or crank sensor;Variable timing actuator fault;Low oil level or dirty oil"],
+["P0087","Fuel rail or system pressure too low","Fuel",3,"inj","Weak fuel pump;Clogged fuel filter;Leaking pressure regulator;Fuel rail pressure sensor fault"],
+["P0101","Mass airflow sensor circuit range or performance","Air",2,"air","Dirty MAF sensor;Intake air leak after the sensor;Clogged air filter;Wiring or connector fault"],
+["P0102","Mass airflow sensor circuit low input","Air",2,"air","Unplugged or damaged MAF connector;Failed MAF sensor;Open circuit in sensor wiring"],
+["P0103","Mass airflow sensor circuit high input","Air",2,"air","Failed MAF sensor;Short to voltage in wiring;Contaminated sensor element"],
+["P0106","Manifold pressure or barometric pressure circuit range or performance","Air",2,"air","Vacuum leak;Clogged MAP sensor port;Failed MAP sensor"],
+["P0107","Manifold pressure circuit low input","Air",2,"air","Failed MAP sensor;Open or shorted signal wire;Loose connector"],
+["P0108","Manifold pressure circuit high input","Air",2,"air","Failed MAP sensor;Short to voltage;Blocked vacuum line"],
+["P0112","Intake air temperature circuit low input","Air",1,"temp","Failed IAT sensor;Shorted wiring;Damaged connector"],
+["P0113","Intake air temperature circuit high input","Air",1,"temp","Open circuit;Unplugged sensor;Failed IAT sensor"],
+["P0116","Engine coolant temperature circuit range or performance","Cooling",2,"temp","Thermostat stuck open;Failing coolant temperature sensor;Low coolant"],
+["P0117","Engine coolant temperature circuit low input","Cooling",2,"temp","Shorted sensor wiring;Failed coolant temperature sensor"],
+["P0118","Engine coolant temperature circuit high input","Cooling",2,"temp","Open circuit or unplugged sensor;Failed coolant temperature sensor"],
+["P0121","Throttle or pedal position sensor A circuit range or performance","Air",2,"tps","Dirty throttle body;Worn throttle position sensor;Wiring fault"],
+["P0122","Throttle or pedal position sensor A circuit low input","Air",2,"tps","Failed throttle position sensor;Open signal or reference wire;Bad connector"],
+["P0123","Throttle or pedal position sensor A circuit high input","Air",2,"tps","Failed throttle position sensor;Short to voltage;Open ground circuit"],
+["P0125","Insufficient coolant temperature for closed loop fuel control","Cooling",1,"temp","Thermostat stuck open;Failing coolant temperature sensor;Low coolant level"],
+["P0128","Coolant thermostat, coolant temperature below regulating temperature","Cooling",1,"temp","Thermostat stuck open;Coolant temperature sensor reading low;Low coolant"],
+["P0130","Oxygen sensor circuit, bank 1 sensor 1","Emissions",2,"o2","Failed oxygen sensor;Exhaust leak near the sensor;Damaged wiring"],
+["P0131","Oxygen sensor circuit low voltage, bank 1 sensor 1","Emissions",2,"o2","Failed oxygen sensor;Exhaust leak;Lean running condition"],
+["P0132","Oxygen sensor circuit high voltage, bank 1 sensor 1","Emissions",2,"o2","Failed oxygen sensor;Rich running condition;Short to voltage"],
+["P0133","Oxygen sensor circuit slow response, bank 1 sensor 1","Emissions",2,"o2","Aged oxygen sensor;Exhaust leak;Contaminated sensor"],
+["P0134","Oxygen sensor circuit no activity detected, bank 1 sensor 1","Emissions",2,"o2","Failed oxygen sensor;Open circuit;Blown heater fuse"],
+["P0135","Oxygen sensor heater circuit, bank 1 sensor 1","Emissions",1,"o2h","Failed sensor heater;Blown fuse;Wiring or connector fault"],
+["P0137","Oxygen sensor circuit low voltage, bank 1 sensor 2","Emissions",1,"o2","Failed downstream sensor;Exhaust leak;Wiring fault"],
+["P0138","Oxygen sensor circuit high voltage, bank 1 sensor 2","Emissions",1,"o2","Failed downstream sensor;Rich condition;Short to voltage"],
+["P0141","Oxygen sensor heater circuit, bank 1 sensor 2","Emissions",1,"o2h","Failed sensor heater;Blown fuse;Damaged wiring"],
+["P0171","System too lean, bank 1","Fuel",2,"trim","Vacuum or intake leak;Dirty MAF sensor;Weak fuel pump or clogged filter;Leaking exhaust before the sensor"],
+["P0172","System too rich, bank 1","Fuel",2,"trim","Leaking injector;Faulty fuel pressure regulator;Dirty air filter;Faulty oxygen sensor"],
+["P0174","System too lean, bank 2","Fuel",2,"trim","Vacuum or intake leak;Dirty MAF sensor;Weak fuel supply;Exhaust leak"],
+["P0175","System too rich, bank 2","Fuel",2,"trim","Leaking injector;Fuel pressure too high;Dirty air filter;Faulty oxygen sensor"],
+["P0201","Injector circuit malfunction, cylinder 1","Fuel",3,"inj","Failed injector;Wiring or connector fault;Engine computer driver fault"],
+["P0220","Throttle or pedal position sensor B circuit","Air",2,"tps","Failed sensor;Wiring fault;Throttle body fault"],
+["P0230","Fuel pump primary circuit","Fuel",3,"inj","Blown fuel pump fuse or relay;Failed fuel pump;Wiring fault"],
+["P0300","Random or multiple cylinder misfire detected","Ignition",3,"misfire","Worn spark plugs;Failing coils;Vacuum leak;Low fuel pressure;Low compression"],
+["P0301","Cylinder 1 misfire detected","Ignition",3,"misfire","Worn spark plug;Failing ignition coil;Clogged or leaking injector;Low compression"],
+["P0302","Cylinder 2 misfire detected","Ignition",3,"misfire","Worn spark plug;Failing ignition coil;Clogged or leaking injector;Low compression"],
+["P0303","Cylinder 3 misfire detected","Ignition",3,"misfire","Worn spark plug;Failing ignition coil;Clogged or leaking injector;Low compression"],
+["P0304","Cylinder 4 misfire detected","Ignition",3,"misfire","Worn spark plug;Failing ignition coil;Clogged or leaking injector;Low compression"],
+["P0316","Misfire detected on startup, first 1000 revolutions","Ignition",2,"misfire","Fouled spark plugs;Weak coil;Cold start fuel delivery problem"],
+["P0325","Knock sensor 1 circuit, bank 1","Engine",2,"knock","Failed knock sensor;Damaged wiring;Loose sensor mounting"],
+["P0335","Crankshaft position sensor A circuit","Engine",3,"cam","Failed crank sensor;Wiring or connector damage;Damaged reluctor wheel"],
+["P0340","Camshaft position sensor circuit, bank 1","Engine",2,"cam","Failed cam sensor;Wiring fault;Timing component wear"],
+["P0351","Ignition coil A primary or secondary circuit","Ignition",3,"coil","Failed coil;Bad connector;Wiring fault;Engine computer driver fault"],
+["P0352","Ignition coil B primary or secondary circuit","Ignition",3,"coil","Failed coil;Bad connector;Wiring fault;Engine computer driver fault"],
+["P0400","Exhaust gas recirculation flow malfunction","Emissions",1,"egr","Clogged EGR passages;Stuck EGR valve;Vacuum line fault"],
+["P0401","Exhaust gas recirculation flow insufficient","Emissions",1,"egr","Carbon buildup in passages;Sticking EGR valve;Failed EGR position sensor"],
+["P0402","Exhaust gas recirculation flow excessive","Emissions",1,"egr","EGR valve stuck open;Failed EGR control;Vacuum fault"],
+["P0420","Catalyst system efficiency below threshold, bank 1","Emissions",1,"cat","Aging catalytic converter;Exhaust leak near the sensors;Failing downstream oxygen sensor;Engine misfire history"],
+["P0430","Catalyst system efficiency below threshold, bank 2","Emissions",1,"cat","Aging catalytic converter;Exhaust leak;Failing downstream oxygen sensor"],
+["P0440","Evaporative emission system malfunction","Emissions",1,"evap","Loose or worn fuel cap;Leaking hose;Failed purge or vent valve"],
+["P0441","Evaporative emission system incorrect purge flow","Emissions",1,"evap","Stuck purge valve;Blocked purge line;Failed purge solenoid"],
+["P0442","Evaporative emission system leak detected, small leak","Emissions",1,"evap","Worn fuel cap seal;Cracked EVAP hose;Leaking purge valve or vent valve"],
+["P0446","Evaporative emission system vent control circuit","Emissions",1,"evap","Failed vent valve;Blocked vent line;Wiring fault"],
+["P0455","Evaporative emission system leak detected, large leak","Emissions",1,"evap","Fuel cap missing or loose;Disconnected hose;Damaged filler neck;Failed canister"],
+["P0456","Evaporative emission system leak detected, very small leak","Emissions",1,"evap","Worn fuel cap seal;Tiny hose crack;Leaking valve"],
+["P0457","Evaporative emission system leak detected, fuel cap loose or off","Emissions",1,"evap","Fuel cap loose or missing;Worn cap seal;Damaged filler neck"],
+["P0500","Vehicle speed sensor malfunction","Electrical",2,"speed","Failed speed sensor;Wiring fault;Damaged tone ring"],
+["P0505","Idle control system malfunction","Engine",2,"idle","Dirty throttle body;Failed idle air control;Vacuum leak"],
+["P0506","Idle control system RPM lower than expected","Engine",2,"idle","Dirty throttle body;Vacuum leak;Clogged air filter"],
+["P0507","Idle control system RPM higher than expected","Engine",2,"idle","Vacuum leak;Sticking throttle;Failed idle air control"],
+["P0562","System voltage low","Electrical",2,"volt","Weak battery;Failing alternator;Corroded battery cables"],
+["P0563","System voltage high","Electrical",2,"volt","Alternator overcharging;Faulty voltage regulator;Bad ground"],
+["P0571","Brake switch A circuit","Electrical",1,"speed","Misadjusted brake switch;Failed switch;Wiring fault"],
+["P0600","Serial communication link malfunction","Network",3,"comm","Wiring fault on the data bus;Failed module;Low system voltage"],
+["P0606","Engine control module processor fault","Electrical",3,"comm","Internal module fault;Low voltage;Water or corrosion damage"],
+["P0700","Transmission control system malfunction","Transmission",2,"trans","A stored transmission code, so scan the transmission module;Low fluid;Wiring fault"],
+["P0715","Input or turbine speed sensor circuit","Transmission",2,"trans","Failed speed sensor;Wiring fault;Low or dirty fluid"],
+["P0720","Output speed sensor circuit","Transmission",2,"trans","Failed output speed sensor;Wiring fault;Metal debris on the sensor"],
+["P0730","Incorrect gear ratio","Transmission",3,"trans","Low or burnt fluid;Worn clutches;Failed solenoid"],
+["P0741","Torque converter clutch circuit performance or stuck off","Transmission",2,"trans","Failed lockup solenoid;Dirty fluid;Worn torque converter"],
+["P0750","Shift solenoid A malfunction","Transmission",2,"trans","Failed shift solenoid;Dirty fluid;Wiring fault"],
+["P2096","Post catalyst fuel trim system too lean, bank 1","Emissions",1,"cat","Exhaust leak;Failing downstream oxygen sensor;Fuel delivery fault"],
+["P2097","Post catalyst fuel trim system too rich, bank 1","Emissions",1,"cat","Failing downstream oxygen sensor;Rich running condition;Leaking injector"],
+["P2195","Oxygen sensor signal stuck lean, bank 1 sensor 1","Emissions",2,"o2","Failed sensor;Vacuum leak;Fuel pressure low"],
+["P2270","Oxygen sensor signal stuck lean, bank 1 sensor 2","Emissions",1,"o2","Failed downstream sensor;Exhaust leak;Wiring fault"],
+["U0100","Lost communication with engine control module","Network",3,"comm","Open or shorted data bus wiring;Failed engine module;Low battery voltage;Blown module fuse"],
+["U0101","Lost communication with transmission control module","Network",3,"comm","Data bus wiring fault;Failed transmission module;Low battery voltage"],
+["U0121","Lost communication with anti-lock brake control module","Network",3,"comm","Data bus wiring fault;Failed ABS module;Blown fuse"],
+["U0140","Lost communication with body control module","Network",2,"comm","Data bus wiring fault;Failed body control module;Low battery voltage"]
+];
+var COMMON=["P0420","P0300","P0171","P0442","P0455","P0301","P0128","P0401"];
+var FAM={
+misfire:{n:"Misfire",about:"The engine computer sees a cylinder not firing when it should. You may feel a shake at idle or a stumble under load.",warn:"A flashing check engine light means an active misfire that can overheat and damage the catalytic converter. Avoid heavy load until it is fixed.",steps:[["Read freeze-frame data","Note engine speed, load and coolant temperature when the code set, and whether one cylinder or several are affected."],["Check for related codes","Fuel trim, oxygen sensor and ignition codes can point to a shared cause."],["Inspect ignition parts on the affected cylinder","Look at the spark plug and coil connector for wear, oil, cracks or heat damage."],["Swap and retest","Move the coil to a different cylinder, clear the code, and see whether the misfire follows it."],["Check fuel and compression","If ignition is fine, test the injector circuit and run a compression test."]]},
+trim:{n:"Fuel trim",about:"The engine computer is adding or removing fuel beyond its normal range to keep the air-fuel mixture correct.",steps:[["Check long-term and short-term fuel trim","Compare trims at idle and at 2,500 rpm. A lean condition that improves at higher rpm points to a vacuum leak."],["Look for air leaks","Inspect intake hoses, the intake boot after the airflow sensor, and vacuum lines for cracks."],["Check the airflow sensor","Inspect the MAF element for dirt and compare its reading with a known good value."],["Test fuel pressure","Confirm pressure at idle and under load against the specification for this engine."],["Inspect the exhaust","A leak before the front oxygen sensor can read as lean."]]},
+o2:{n:"Oxygen sensor",about:"An oxygen sensor reading is outside its expected range or is responding too slowly.",steps:[["Check live sensor data","Watch the voltage or current while revving the engine and see whether it switches quickly."],["Inspect wiring and connector","Look for melted insulation, oil in the connector and loose pins."],["Check for exhaust leaks","Leaks near the sensor let in outside air and skew readings."],["Rule out a mixture problem","Review fuel trims. A sensor can be reporting a real lean or rich condition."],["Replace the sensor if it fails the checks","Use the correct sensor for the bank and position."]]},
+o2h:{n:"Oxygen sensor heater",about:"The heater inside an oxygen sensor is not drawing the expected current.",steps:[["Check the heater fuse","Find the fuse that feeds the sensor heater and confirm it is intact."],["Measure heater resistance","Compare the heater resistance with the specification for the sensor."],["Check power and ground at the connector","Confirm battery voltage and a good ground with the key on."],["Inspect wiring","Look for chafing near the exhaust."],["Replace the sensor if the heater is open","A failed heater cannot be repaired."]]},
+cat:{n:"Catalytic converter",about:"The converter is not cleaning the exhaust as well as the computer expects, or the downstream fuel trim is off.",steps:[["Check for other codes first","Misfire, fuel trim and oxygen sensor codes can cause a catalyst code."],["Look for exhaust leaks","Inspect the joints and manifold upstream of the rear sensor."],["Compare front and rear oxygen sensor traces","A healthy converter shows a steady rear sensor while the front switches."],["Check the rear sensor","A slow or biased rear sensor can mimic a tired converter."],["Replace the converter last","Only after the causes above are ruled out."]]},
+evap:{n:"Evaporative emissions",about:"The fuel vapor system holds a pressure or vacuum test and the computer found a leak or a valve fault.",steps:[["Check the fuel cap","Reseat it until it clicks, inspect the seal, and replace it if cracked."],["Inspect hoses and the filler neck","Look for cracks, loose clamps and rust near the filler."],["Test the purge and vent valves","Listen for a click when commanded with a scan tool, and check for stuck open or stuck closed."],["Smoke test the system","A smoke machine shows the exact leak location."],["Clear codes and recheck","The monitor needs a full drive cycle to re-run."]]},
+air:{n:"Air intake sensor",about:"An airflow or pressure sensor signal is out of range or does not match what the engine is doing.",steps:[["View live sensor data","Compare the reading at key on engine off, at idle and at higher rpm."],["Inspect the sensor and connector","Check for dirt, oil, corrosion and bent pins."],["Check for intake leaks","Unmetered air changes how airflow and pressure sensors behave."],["Check reference voltage and ground","Confirm the sensor is supplied correctly at the connector."],["Replace the sensor if it still fails","Clean a MAF element only with a cleaner made for it."]]},
+temp:{n:"Temperature sensor",about:"A temperature signal is out of range, or the engine is taking too long to reach operating temperature.",steps:[["Compare sensor reading with actual temperature","With a cold engine, the reading should match ambient."],["Check coolant level","Low coolant can give false readings."],["Inspect connector and wiring","Look for corrosion and loose terminals."],["Test the thermostat","Watch warm-up. A thermostat stuck open keeps the engine cool."],["Replace the sensor or thermostat as indicated","Refill and bleed the cooling system after any coolant work."]]},
+tps:{n:"Throttle or pedal sensor",about:"A throttle or accelerator pedal position sensor disagrees with the other sensor or the commanded position.",steps:[["Compare sensor A and B","The two signals should track each other through the full travel."],["Clean the throttle body","Carbon can restrict movement. Use throttle cleaner and follow the manufacturer's method."],["Check wiring and connector","Look for chafing and loose pins."],["Perform a throttle relearn","Many vehicles need one after cleaning or replacement."],["Replace the sensor or throttle body","Only if readings still disagree."]]},
+cam:{n:"Crank or cam sensor",about:"The timing signals from the crank and cam sensors are missing or do not line up.",steps:[["Check oil level and condition","Low or dirty oil can upset variable timing."],["Inspect the sensor and connector","Look for oil, damage and loose mounting."],["Check the signal with a scan tool or scope","Confirm the signal is present while cranking."],["Check timing component wear","On a chain engine, look for stretch using the manufacturer's method."],["Replace the sensor if the signal is bad","Verify timing marks if a timing fault is suspected."]]},
+egr:{n:"Exhaust gas recirculation",about:"The EGR system is not flowing as much recirculated exhaust as the computer expects.",steps:[["Command the valve with a scan tool","The engine should stumble at idle when the valve opens."],["Inspect passages for carbon","Clean blocked passages in the valve and intake."],["Check vacuum or electrical control","Look for cracked lines or a failed solenoid."],["Check the position sensor","Confirm it follows the commanded position."],["Replace the valve if it sticks","Clean passages when replacing."]]},
+idle:{n:"Idle control",about:"The engine idle speed is not holding where the computer wants it.",steps:[["Check for vacuum leaks","Inspect hoses, intake boot and brake booster line."],["Clean the throttle body","Use throttle cleaner and follow the manufacturer's method."],["Check the idle air control valve","On engines that have one, confirm it moves and is not stuck."],["Check accessory load","A failing alternator or AC compressor can pull idle down."],["Perform an idle relearn","Some vehicles require this after cleaning."]]},
+volt:{n:"Charging system",about:"System voltage is outside its normal range.",steps:[["Test battery voltage","With the engine off it should be about 12.6 volts when fully charged."],["Test charging voltage","Running, voltage is typically 13.5 to 14.8 volts. Compare with the specification."],["Inspect cables and grounds","Clean corrosion and check tightness."],["Load test the battery","A weak battery can overwork the alternator."],["Test the alternator","Replace if output is low or erratic."]]},
+trans:{n:"Transmission",about:"The transmission module has detected a fault in a sensor, solenoid or the transmission's operation.",steps:[["Check fluid level and condition","Use the manufacturer's procedure. Burnt smell or debris is a warning sign."],["Scan the transmission module","Look for codes the engine scan does not show."],["Inspect wiring and connectors","Check at the transmission and the module."],["Test the sensor or solenoid","Measure resistance and compare with the specification."],["Road test and note when it happens","Record speed, gear and load when the symptom appears."]]},
+comm:{n:"Network communication",about:"A control module is not communicating on the vehicle data bus, or the engine computer has an internal fault.",steps:[["Check battery voltage","Low voltage can drop modules off the network."],["Check fuses and grounds","Look at fuses that feed the affected module."],["Scan all modules","See which modules still respond and which do not."],["Inspect the data bus wiring","Check the twisted pair for damage and the connectors for water."],["Test the module","Confirm power, ground and bus signals at its connector before replacing it."]]},
+inj:{n:"Fuel delivery",about:"Fuel is not being supplied at the pressure or timing the computer expects.",steps:[["Check fuel pump fuse and relay","Confirm they are intact and the pump runs at key on."],["Measure fuel pressure","Compare with the specification at idle and under load."],["Check the injector circuit","Look for a pulse at the injector connector."],["Inspect the fuel filter","A restricted filter lowers pressure."],["Test or replace the injector or pump","Only after the checks above."]]},
+coil:{n:"Ignition coil",about:"An ignition coil circuit is not working normally.",steps:[["Check the coil connector","Look for loose or corroded terminals."],["Swap the coil with another cylinder","See whether the fault follows the coil."],["Check power and ground","Confirm the supply at the coil connector."],["Check the spark plug","A worn plug can overload a coil."],["Replace the coil","Replace the plug at the same time if it is worn."]]},
+speed:{n:"Speed or switch sensor",about:"A speed or switch input is missing or reads outside its range.",steps:[["Check live data","Confirm the value changes as expected when driving or pressing the pedal."],["Inspect the sensor and connector","Look for damage and contamination."],["Check wiring","Look for chafing along the harness."],["Check the target","A damaged tone ring or magnet can cause dropouts."],["Replace the sensor if the signal is bad","Verify the fix with a road test."]]},
+knock:{n:"Knock sensor",about:"The knock sensor signal is missing or outside the expected range.",steps:[["Check the sensor mounting torque","A loose sensor can give a weak or false signal."],["Inspect wiring and connector","Look for oil and damage, especially in the valley."],["Measure sensor resistance","Compare with the specification."],["Rule out mechanical noise","Loose accessories can mimic knock."],["Replace the sensor","Torque to the specification."]]},
+gen:{n:"General",about:"A fault was stored for this circuit.",steps:[["Read freeze-frame data","Note the conditions when the code set."],["Check for related codes","Look for a shared cause."],["Inspect the circuit","Check wiring, connectors and grounds."],["Test the component","Compare readings with the specification."],["Repair and retest","Clear the code and confirm it does not return."]]}};
+var BYCODE={};DTC.forEach(function(r){BYCODE[r[0]]=r});
+
+/* ---------- State ---------- */
+var KEY="garage-diagnostics-v1";
+var S={tab:"vehicle",mode:"vin",vehicles:[],active:null,recent:[],notes:{},marks:[],steps:{},code:null,proc:null,vin:"",draft:null,msg:null,busy:false,paste:"",embed:null,embedurl:"",emsg:"",mview:"",live:{},conn:null,ymm:blankForm(),editing:null,eform:null,confirm:null,q:"",mq:"",vol:null,sec:null,mpath:[],mid:null,midFor:null,pfrom:null};
+function load(){try{var d=JSON.parse(localStorage.getItem(KEY)||"null");if(d){["vehicles","active","recent","notes","marks","steps"].forEach(function(k){if(d[k]!==undefined)S[k]=d[k]})}}catch(e){}}
+function save(){try{localStorage.setItem(KEY,JSON.stringify({vehicles:S.vehicles,active:S.active,recent:S.recent,notes:S.notes,marks:S.marks,steps:S.steps}))}catch(e){}}
+load();
+var SAMPLE={id:"sample",year:2003,make:"Honda",model:"Accord",trim:"",disp:"2.4",layout:"I4",fuel:"Gasoline",asp:"Naturally aspirated",engine:"2.4L I4",trans:"Automatic, 5-speed",drive:"Front-wheel drive (FWD)",body:"Sedan",vin:"",src:"sample",sample:true,extra:[],hp:""};
+S.vehicles=S.vehicles.map(function(v){return v.sample?SAMPLE:v});
+if(!S.vehicles.length){S.vehicles=[SAMPLE];S.active="sample"}
+if(!S.active||!S.vehicles.some(function(v){return v.id===S.active})){S.active=S.vehicles[0]?S.vehicles[0].id:null}
+
+/* ---------- Helpers ---------- */
+function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]})}
+function activeV(){return S.vehicles.filter(function(v){return v.id===S.active})[0]||null}
+function vname(v){return [v.year,v.make,v.model].filter(Boolean).join(" ")}
+function uid(){return "v"+Date.now().toString(36)+Math.floor(Math.random()*1e4).toString(36)}
+var URG=["","Low urgency","Fix soon","Fix now"];
+function pill(n){return '<span class="pill sev'+n+'">'+URG[n]+'</span>'}
+function icon(name){var p={vehicle:'<path d="M5 16l1.5-5.5A2 2 0 0 1 8.4 9h7.2a2 2 0 0 1 1.9 1.5L19 16"/><path d="M3 16h18v3H3z"/><circle cx="7.5" cy="19" r="1.5"/><circle cx="16.5" cy="19" r="1.5"/>',codes:'<circle cx="11" cy="11" r="7"/><path d="M21 21l-5.2-5.2"/>',manuals:'<path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M4 21V5"/>',back:'<path d="M19 12H5"/><path d="M11 6l-6 6 6 6"/>',check:'<path d="M5 12.5l4.5 4.5L19 7.5"/>'}[name];return '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+p+'</svg>'}
+function normCode(q){q=q.toUpperCase().replace(/\s/g,"");if(/^[PCBU][0-9OA-F]{1,4}$/.test(q)){q=q[0]+q.slice(1).replace(/O/g,"0")}return q}
+function noVeh(){return '<div class="info">Pick a vehicle on the Vehicle tab to tie results to your car.</div>'}
+
+/* ---------- Imported manuals ---------- */
+var MANUALS=[{"id":"honda-2003-accord-l4-24","label":"2003 Honda Accord L4-2.4L","source":"lemon-manuals.la","base":"https://lemon-manuals.la/Honda/2003/Accord%20L4-2.4L/Repair%20and%20Diagnosis/A%20L%20L%20%20Diagnostic%20Trouble%20Codes%20%28%20DTC%20%29/Testing%20and%20Inspection/P%20Code%20Charts/","match":{"make":"Honda","model":"Accord","year":2003,"engine":"2.4"},"procs":{"P0301":{"title":"No. 1 Cylinder Misfire Detected","detection":null,"causes":["Faulty ignition coil","Faulty spark plug or plug fouling","Faulty fuel injector","Poor or loose connections at ignition coil, injector, or ECM/PCM connectors","Open or shorted wiring between ECM/PCM and ignition coil or injector","Open wiring between ignition coil and ignition coil relay, or between ignition coil and G101","Open wiring between injector and PGM-FI main relay","Low engine compression or cylinder leakage","Faulty VTEC rocker arm","Outdated or faulty ECM/PCM"],"notes":["Use the HDS for all DTC clearing, monitoring, DATA LIST checks, and ECM/PCM resets.","Record freeze data (step 1) before clearing the DTC.","Several steps require monitoring CYL misfire counts for 10 minutes; some require a 2-minute idle.","Several steps require the ignition switch in ON (II) with connectors disconnected. Take care with live circuits.","Steps 65 to 67 use the Programming and Relearning procedures (Engine Control Module, Testing and Inspection).","Steps 37 and 56 refer to terminal tables that are images on the source page. Open the source page for those."],"steps":[["Note freeze data: engine speed, vehicle speed, throttle position, CLV, gear position.",null,null],["Clear the DTC with the HDS.",null,null],["Start engine with no load (Park or neutral) and let it idle.",null,null],["Monitor OBD STATUS for P0301 to P0304 in the DTCs MENU with HDS. FAILED?","Go to step 9.","PASSED: go to step 5. EXECUTING: keep driving until result. OUT OF CONDITION: wait several minutes and recheck."],["Check CYL1 to CYL4 MISFIRE in DATA LIST for 10 minutes with HDS. Any misfire counts?","Go to step 9.","Go to step 6."],["Test-drive several minutes within recorded freeze data range.",null,null],["Monitor OBD STATUS for P0301 to P0304 in the DTCs MENU with HDS. FAILED?","Go to step 9.","PASSED: go to step 8. EXECUTING: keep driving until result. OUT OF CONDITION: go to step 6 and recheck."],["Check CYL1 to CYL4 MISFIRE in DATA LIST for 10 minutes with HDS. Any misfire counts?","Go to step 9.","Intermittent failure; system OK at this time."],["Turn ignition switch OFF.",null,null],["Remove intake manifold cover.",null,null],["Start engine and listen for clicking at the problem cylinder's injector. Does injector click?","Go to step 12.","Go to step 43."],["Turn ignition switch OFF.",null,null],["Exchange ignition coil from problem cylinder with one from another cylinder.",null,null],["Test-drive several minutes within recorded freeze data range.",null,null],["Check CYL1 to CYL4 MISFIRE in DATA LIST for 10 minutes with HDS. Any misfire counts?","Go to step 16.","Intermittent misfire from poor ignition coil connector contact. Make sure coil connections are secure."],["Does misfire occur in the cylinder where the coil was moved?","Replace faulty ignition coil, then go to step 63.","Go to step 17."],["Turn ignition switch OFF.",null,null],["Exchange spark plug from problem cylinder with one from another cylinder.",null,null],["Test-drive several minutes within recorded freeze data range.",null,null],["Check CYL1 to CYL4 MISFIRE in DATA LIST for 10 minutes with HDS. Any misfire counts?","Go to step 21.","Intermittent misfire from spark plug fouling (no misfire at this time)."],["Does misfire occur in the cylinder where the spark plug was moved?","Replace faulty spark plug, then go to step 63.","Go to step 22."],["Turn ignition switch OFF.",null,null],["Exchange injector from problem cylinder with one from another cylinder.",null,null],["Start engine and let it idle for 2 minutes.",null,null],["Test-drive several minutes within recorded freeze data range.",null,null],["Check CYL1 to CYL4 MISFIRE in DATA LIST for 10 minutes with HDS. Any misfire counts?","Go to step 27.","Intermittent misfire from bad injector connector contact. Check for poor connections or loose terminals at injector."],["Does misfire occur in the cylinder where the injector was moved?","Replace faulty injector, then go to step 63.","Go to step 28."],["Turn ignition switch OFF.",null,null],["Disconnect ignition coil 3P connector from problem cylinder.",null,null],["Turn ignition switch ON (II).",null,null],["Measure voltage between ignition coil 3P connector terminal No. 3 and body ground. Battery voltage?","Go to step 32.","Repair open wire between ignition coil and ignition coil relay, then go to step 63."],["Turn ignition switch OFF.",null,null],["Check continuity between ignition coil 3P connector terminal No. 2 and body ground. Continuity?","Go to step 34.","Repair open wire between ignition coil and G101, then go to step 63."],["Turn ignition switch OFF.",null,null],["Jump the SCS line with HDS.",null,null],["Disconnect ECM/PCM connector A (31P).",null,null],["Check continuity between body ground and the appropriate ECM/PCM connector A (31P) terminal (terminal table is an image on the source page). Continuity?","Repair short in wire between ECM/PCM and ignition coil, then go to step 63.","Go to step 38."],["Connect appropriate ignition coil 3P connector terminal No. 1 to body ground with a jumper wire.",null,null],["Check continuity between body ground and the appropriate ECM/PCM terminal. Continuity?","Go to step 40.","Repair open wire between ECM/PCM and ignition coil, then go to step 63."],["Reconnect ignition coil 3P connector and ECM/PCM connector A (31P).",null,null],["Perform engine compression test and cylinder leak-down test. Did engine pass both?","Go to step 42.","Repair engine, then go to step 63."],["Perform VTEC rocker arm test. Did it pass?","Go to step 71.","Repair as necessary, then go to step 63."],["Turn ignition switch OFF.",null,null],["Jump the SCS line with HDS.",null,null],["Disconnect ECM/PCM connector B (24P).",null,null],["Turn ignition switch ON (II).",null,null],["Measure voltage between body ground and the appropriate ECM/PCM connector B (24P) terminal. Battery voltage?","Go to step 57.","Go to step 48."],["Turn ignition switch OFF.",null,null],["Remove intake manifold cover.",null,null],["Disconnect injector 2P connector from problem cylinder.",null,null],["Turn ignition switch ON (II).",null,null],["Measure voltage between injector 2P connector terminal No. 1 and body ground. Battery voltage?","Go to step 53.","Repair open wire between injector and PGM-FI main relay, then go to step 63."],["Turn ignition switch OFF.",null,null],["Check continuity between body ground and the appropriate ECM/PCM terminal. Continuity?","Repair short in wire between ECM/PCM and injector, then go to step 63.","Go to step 55."],["Connect appropriate injector 2P connector terminal No. 2 to body ground with a jumper wire.",null,null],["Check continuity between body ground and the appropriate ECM/PCM terminal (terminal table is an image on the source page). Continuity?","Go to step 57.","Repair open wire between ECM/PCM and injector, then go to step 63."],["Measure resistance between injector 2P connector terminals No. 1 and No. 2. Is it 10 - 13 Ohm?","Go to step 58.","Replace injector, then go to step 63."],["Substitute a known-good injector from another cylinder into the problem cylinder.",null,null],["Reconnect ECM/PCM connector B (24P).",null,null],["Start engine and let it idle for 2 minutes.",null,null],["Test-drive several minutes within recorded freeze data range.",null,null],["Check CYL1 to CYL4 MISFIRE in DATA LIST for 10 minutes with HDS. Any misfire counts?","Go to step 71.","Replace original injector, then go to step 63."],["Turn ignition switch ON (II).",null,null],["Reset ECM/PCM with HDS.",null,null],["Clear CKP pattern with HDS. See Programming and Relearning page (Engine Control Module, Testing and Inspection).",null,null],["Perform ECM/PCM idle learn procedure. See Programming and Relearning page (Engine Control Module, Testing and Inspection).",null,null],["Perform CKP pattern learn procedure. See Programming and Relearning page (Engine Control Module, Testing and Inspection).",null,null],["Test-drive several minutes within recorded freeze data range.",null,null],["Check for Temporary DTCs or DTCs with HDS. Any indicated?","If P0301 to P0304 indicated, check poor connections or loose terminals at ignition coil, injector, and ECM/PCM, then go to troubleshooting DTC P0300 to P0304. If other DTCs, go to their troubleshooting.","Go to step 70."],["Monitor OBD STATUS for P0301 to P0304 in DTCs MENU with HDS. PASSED?","Troubleshooting complete.","FAILED: go to step 1 and recheck. EXECUTING: keep driving until result. OUT OF CONDITION: go to step 68 and recheck."],["Update ECM/PCM if it lacks latest software, or substitute a known-good ECM/PCM.",null,null],["Test-drive several minutes within recorded freeze data range.",null,null],["Check for Temporary DTCs or DTCs with HDS. Any indicated?","If P0301 to P0304 indicated, check poor connections or loose terminals at injector, ignition coil, and ECM/PCM, then go to step 1. If other DTCs, go to their troubleshooting.","If ECM/PCM was updated, troubleshooting complete. If substituted, replace original ECM/PCM."]]},"P0300":{"title":"Random Misfire and any combination of P0301 to P0304","detection":"Misfire frequent enough to raise emissions over two consecutive driving cycles turns the MIL on and stores P0300 (and some of P0301 to P0304). Misfire severe enough to damage the catalyst makes the MIL flash during the misfire and stay on after it stops.","causes":["Poor fuel quality","Fouled or worn spark plugs","Fuel pressure too high or too low (fuel pressure regulator, fuel pump, fuel feed pipe, fuel filter)","MAF/IAT sensor reading outside 14 - 20 gm/s at 4,500 rpm","Low VTEC oil pressure or VTEC system fault","Poor connection or loose terminals at ignition coil, injector, or ECM/PCM","Related DTCs to troubleshoot first: P0107, P0108, P1128, P1129 (MAP sensor); P0171, P0172 (fuel system); P0335, P0339 (CKP sensor); P0365, P0369 (CMP sensor B); P0506, P0507 (idle control); P0511 (IAC valve); P0401, P0404, P0416, P2413 (EGR system)"],"notes":["Troubleshoot related DTCs (MAP, fuel system, CKP, CMP B, idle control, IAC, EGR) first if stored with P0300.","Special tools listed in the manual: pressure gauge adapter 07NAJ-P07010A; A/T low pressure gauge w/panel 07406-0070300; A/T pressure hose 07406-0020201; A/T pressure hose, 2,210 mm 07MAJ-PY4011A; A/T pressure adapter 07MAJPY40120; oil pressure hose 07ZAJ-S5A0200.","Install the VTEC oil pressure switch in reverse order of removal, using a new O-ring.","Keep the oil pressure test under 1 minute because the engine runs with no load.","Steps 26 to 28 use the Programming and Relearning procedures (ECM/PCM reset, idle learn, CKP pattern learn)."],"steps":[["Note freeze data: engine speed, vehicle speed, throttle position, CLV, gear position.",null,null],["Clear the DTC with the HDS.",null,null],["Start the engine with no load (in Park or neutral) and let it idle.",null,null],["Monitor OBD STATUS for P0301, P0302, P0303, or P0304 in the DTCs MENU with the HDS.","If FAILED, go to step 9.","If PASSED, go to step 5. If EXECUTING, keep driving until a result appears. If OUT OF CONDITION, wait several minutes and recheck."],["Check CYL1, CYL2, CYL3, and/or CYL4 MISFIRE in the DATA LIST for 10 minutes with the HDS. Any misfire counts?","Go to step 9.","Go to step 6."],["Test-drive the vehicle for several minutes within the recorded freeze data range.",null,null],["Monitor OBD STATUS for P0301, P0302, P0303, or P0304 in the DTCs MENU with the HDS.","If FAILED, go to step 9.","If PASSED, go to step 8. If EXECUTING, keep driving until a result appears. If OUT OF CONDITION, go to step 6 and recheck."],["Check CYL1, CYL2, CYL3, and/or CYL4 MISFIRE in the DATA LIST for 10 minutes with the HDS. Any misfire counts?","Go to step 9.","Intermittent failure; system is OK at this time."],["Turn the ignition switch OFF.",null,null],["Check the fuel quality.","Go to step 11.","Drain the tank, fill with known-good fuel, then go to step 24."],["Inspect the spark plugs. Replace them if fouled or worn.",null,null],["Test-drive the vehicle for several minutes within the recorded freeze data range.",null,null],["Check CYL1, CYL2, CYL3, and/or CYL4 MISFIRE in the DATA LIST for 10 minutes with the HDS. Any misfire counts?","Go to step 14.","Go to step 24."],["Check the fuel pressure. If too high, replace the fuel pressure regulator, then go to step 24. If too low, check the fuel pump, fuel feed pipe, and fuel filter; if they are OK, replace the pressure regulator, then go to step 24.","If SULEV and LX-P model, go to step 15. If non-SULEV and LX-P model, go to step 19.","Repair as described in the text, then go to step 24."],["Start the engine. Hold engine speed at 3,000 rpm with no load (in Park or neutral) until the radiator fan comes on, then let it idle.",null,null],["Confirm: engine coolant temperature more than 176 °F (80 °C); transmission in neutral (A/T in Park or neutral); all electric loads off.",null,null],["Monitor ENG SPD in the DATA LIST with the HDS and hold engine speed at 4,500 rpm. Once reached, hold the accelerator pedal steady for more than 10 seconds.","If engine speed dropped more than 100 rpm from 4,500 rpm, repeat step 17.","If it did not drop more than 100 rpm, go to step 18."],["While holding 4,500 rpm, check MAF SENSOR in the DATA LIST with the HDS.","If about 14 - 20 gm/s, go to step 19.","Replace the MAF/IAT sensor, then go to step 24."],["Turn the ignition switch OFF (II).",null,null],["Remove the VTEC oil pressure switch (A), install the special tools as shown, then install the VTEC oil pressure switch (A) in the pressure gauge adapter (B).",null,null],["Reconnect the VTEC oil pressure switch 2P connector.",null,null],["Start the engine. Hold engine speed at 3,000 rpm with no load (in Park or neutral) until the radiator fan comes on, then let it idle.",null,null],["Check oil pressure at 1,000 rpm and 2,000 rpm. Keep the test under 1 minute.","If below 49 kPa (0.5 kgf/sq.cm, 7 psi), check fuel pressure and repair as needed, then go to step 24.","If not below 49 kPa (0.5 kgf/sq.cm, 7 psi), inspect the VTEC system, then go to step 24."],["Turn the ignition switch ON (II).",null,null],["Reset the ECM/PCM with the HDS.",null,null],["Clear the CKP pattern with the HDS. See the Programming and Relearning page.",null,null],["Perform the ECM/PCM idle learn procedure. See the Programming and Relearning page.",null,null],["Perform the CKP pattern learn procedure. See the Programming and Relearning page.",null,null],["Test-drive the vehicle for several minutes within the recorded freeze data range.",null,null],["Check for Temporary DTCs or DTCs with the HDS.","If P0300 to P0304 appear, check for poor connection or loose terminals at the ignition coil, injector, and ECM/PCM, then go to the troubleshooting page for DTC P0301, P0302, P0303, or P0304. If other DTCs appear, go to their troubleshooting.","Go to step 31."],["Monitor OBD STATUS for P0301, P0302, P0303, or P0304 in the DTCs MENU with the HDS.","If PASSED, troubleshooting is complete.","If FAILED, go to step 1 and recheck. If EXECUTING, keep driving until a result appears. If OUT OF CONDITION, go to step 29 and recheck."]]},"P0171":{"title":"Fuel System Too Lean","detection":"P0171 may take up to 40 minutes of test driving to set. Monitor LT FUEL TRIM or AF FB AVG with the HDS for 15 minutes while driving; if the value stays within 10% of 1.0% (0.0%), there is no problem at this time.","causes":["Low fuel pressure: faulty fuel pump or restricted/leaking fuel feed line","High fuel pressure: faulty fuel pressure regulator","Vacuum leaks: PCV valve, PCV hose, EVAP canister purge valve, throttle body, intake manifold, brake booster hose","Incorrect engine valve clearances","Faulty fuel injectors","Faulty MAF/IAT sensor (MAF reading out of range at 4,500 rpm)","Related DTCs that must be fixed first: P0107, P0108, P1128, P1129 (MAP sensor); P0133, P1157, P2195, P2238, P2252 (A/F sensor 1); P0134, P0135 (A/F sensor 1 heater); P0137, P0138, P0139 (HO2S 2); P0141 (HO2S 2 heater); P2646 to P2649 (VTEC); P0401, P0404, P0406, P2413 (EGR); P2279 (intake air leak, except SULEV and LX-P); P0443, P0496 (EVAP canister purge valve, SULEV and LX-P)"],"notes":["If related DTCs appear with P0171 and/or P0172, troubleshoot those first, then recheck for P0171 and/or P0172.","Fuel trim is acceptable if it stays within 10% of 1.0% (0.0%) over 15 minutes of driving.","Coolant temperature must exceed 158 °F (70 °C) in step 4 and 176 °F (80 °C) in step 11.","SULEV and LX-P models follow the EVAP-related path at step 2. Other models go to valve clearance checks at step 1."],"steps":[["Check the fuel pressure. If too high, replace the fuel pressure regulator. If too low, check the fuel pump and fuel feed line.","SULEV and LX-P models: go to step 2. Except SULEV and LX-P: check engine valve clearances and adjust if needed. If clearances are OK, replace the injectors, then go to step 7.","If pressure is too high, replace the fuel pressure regulator, then go to step 7. If too low, check the fuel pump and fuel feed line, then go to step 7."],["Check the PCV valve, PCV hose, EVAP canister purge valve, throttle body, intake manifold, and brake booster hose for vacuum leaks.","Go to step 3.","Repair or replace leaking parts, then go to step 7."],["Start the engine. Hold engine speed at 3,000 rpm with no load (in Park or neutral) until the radiator fan comes on, then let it idle.",null,null],["Confirm: engine coolant temperature above 158 °F (70 °C); transmission in neutral (A/T in Park or neutral); all electrical loads off.",null,null],["Monitor ENG SPD in the DATA LIST with the HDS and hold engine speed at 4,500 rpm. After reaching it, hold the accelerator pedal steady for more than 10 seconds.","Engine speed dropped more than 100 rpm from 4,500 rpm: repeat step 5.","Engine speed did not drop more than 100 rpm: go to step 6."],["While holding 4,500 rpm, check MAF SENSOR in the DATA LIST with the HDS. Reading should be about 14 to 20 gm/s.","Check engine valve clearances and adjust if needed. If clearances are OK, replace the injectors, then go to step 7.","Replace the MAF/IAT sensor, then go to step 7."],["Turn the ignition switch ON (II).",null,null],["Reset the ECM/PCM with the HDS.",null,null],["Perform the ECM/PCM idle learn procedure. See the Programming and Relearning page (Engine Control Module, Testing and Inspection).",null,null],["Start the engine. Hold engine speed at 3,000 rpm with no load (in Park or neutral) until the radiator fan comes on, then let it idle.",null,null],["Test-drive with engine coolant temperature above 176 °F (80 °C), transmission in neutral (A/T in Park or neutral), and all electrical loads off. Monitor LT FUEL TRIM or AF FB AVG with the HDS for 15 minutes; it may take up to 40 minutes of driving to set the DTC.",null,null],["Check for Temporary DTCs or DTCs with the HDS.","If P0171 or P0172 is indicated, go to step 1. If any other DTC is indicated, go to that DTC's troubleshooting.","Troubleshooting is complete."]]},"P0172":{"title":"Fuel System Too Rich","detection":null,"causes":["Fuel pressure too high (replace fuel pressure regulator)","Fuel pressure too low (fuel pump or fuel feed line)","Vacuum leaks: PCV valve, PCV hose, EVAP canister purge valve, throttle body, intake manifold, brake booster hose","Valve clearance out of spec or faulty injectors","MAF/IAT sensor out of range","Related DTCs: P0107, P0108, P1128, P1129 (MAP sensor); P0133, P1157, P2195, P2238, P2252 (A/F sensor 1); P0134, P0135 (A/F sensor 1 heater); P0137, P0138, P0139 (HO2S 2); P0141 (HO2S 2 heater); P2646 to P2649 (VTEC); P0401, P0404, P0406, P2413 (EGR); P2279 (intake air leak, except SULEV and LX-P); P0443, P0496 (EVAP purge valve, SULEV and LX-P)"],"notes":["If related DTCs are present with P0171 and/or P0172, troubleshoot those first, then recheck.","P0171 and/or P0172 may take up to 40 minutes of test driving to set.","The procedure uses the HDS scan tool for DATA LIST monitoring, ECM/PCM reset, and DTC checks."],"steps":[["Check the fuel pressure.","SULEV and LX-P: go to step 2. Except SULEV and LX-P: check and adjust engine valve clearances; if OK, replace injectors, then go to step 7.","If pressure is too high, replace fuel pressure regulator, then go to step 7. If too low, check fuel pump and fuel feed line, then go to step 7."],["Check for vacuum leaks at: PCV valve, PCV hose, EVAP canister purge valve, throttle body, intake manifold, brake booster hose.","Go to step 3.","Repair or replace leaking parts, then go to step 7."],["Start the engine. Hold engine speed at 3,000 rpm with no load (Park or neutral) until the radiator fan comes on, then let it idle.",null,null],["Confirm: engine coolant temperature above 158 °F (70 °C); transmission in neutral (A/T in Park or neutral); all electrical loads off.",null,null],["Monitor ENG SPD in the DATA LIST with the HDS and hold engine speed at 4,500 rpm. Once reached, hold the accelerator steady for more than 10 seconds. Did speed drop more than 100 rpm from 4,500 rpm?","Repeat step 5.","Go to step 6."],["While holding 4,500 rpm, check MAF SENSOR in the DATA LIST with the HDS. Should read about 14-20 gm/s.","Check and adjust engine valve clearances; if OK, replace injectors, then go to step 7.","Replace the MAF/IAT sensor, then go to step 7."],["Turn the ignition switch ON (II).",null,null],["Reset the ECM/PCM with the HDS.",null,null],["Perform the ECM/PCM idle learn procedure (see the Programming and Relearning page under Engine Control Module, Testing and Inspection).",null,null],["Start the engine. Hold engine speed at 3,000 rpm with no load (Park or neutral) until the radiator fan comes on, then let it idle.",null,null],["Test-drive with: engine coolant temperature above 176 °F (80 °C); transmission in neutral (A/T in Park or neutral); all electrical loads off. Using the HDS, monitor LT FUEL TRIM or AF FB AVG for 15 minutes while driving; if it stays within 10 % of 1.0 % (0.0 %), there is no problem at this time. The code may take up to 40 minutes to set.",null,null],["Check for Temporary DTCs or DTCs with the HDS.","If P0171 or P0172 is indicated, go to step 1. If any other DTC is indicated, go to that DTC's troubleshooting.","Troubleshooting is complete."]]},"P0420":{"title":"Catalyst System Efficiency Below Threshold","detection":null,"causes":["Poor quality fuel","Secondary HO2S (Sensor 2) codes P0137 or P0138 stored with P0420: diagnose these first","Secondary HO2S (Sensor 2) heater code P0141 stored with P0420: diagnose this first","ECM/PCM software not updated per Service Bulletin 03-063","Catalytic converter failure, only if P0420 resets after the software update"],"notes":["Do not replace the catalytic converter unless the ECM/PCM software has already been updated and P0420 sets again. Otherwise the repair is not lasting and may result in a warranty debit.","If secondary HO2S codes (P0137, P0138) or heater code (P0141) are stored with P0420, troubleshoot those first, then recheck P0420.","Poor quality fuel may cause this DTC."],"steps":[["Turn the ignition switch ON (II).",null,null],["Perform a DTC CLEAR in the CLEAR MENU of the Honda PGM tester or HDS.",null,null],["Start the engine. Hold engine speed at 3,000 rpm with no load (Park or neutral) until the radiator fan comes on, then let it idle.",null,null],["Test-drive: coolant above 158 °F (70 °C); transmission in 5th gear (A/T in D); cruise control at 50 to 55 mph (80 to 88 km/h). Drive about 2 minutes, decelerate at least 4 seconds with throttle fully closed, then accelerate to 55 mph (88 km/h) with cruise for 20 minutes.",null,null],["Monitor OBD STATUS for DTC P0420 in the DTC MENU of the Honda PGM tester or HDS. Is it EXECUTING?","Go to step 6.","Go to step 4 and recheck."],["Continue test driving until a result appears.",null,null],["Monitor OBD STATUS for DTC P0420 in the DTC MENU of the Honda PGM tester or HDS. Is it FAILED?","Go to step 8.","If PASSED: intermittent failure, system OK for now. If EXECUTING: keep driving until a result appears. If Out of CONDITION: go to step 4 and recheck."],["Turn the ignition switch OFF.",null,null],["Update ECM/PCM software using the Honda Interface Module (HIM). See Service Bulletin 03-063 for model application and procedure. Do not replace the catalytic converter unless the software is already updated and P0420 sets again.",null,null],["Turn the ignition switch ON (II).",null,null],["Perform an ECM/PCM RESET in the CLEAR MENU of the Honda PGM tester or HDS.",null,null],["Perform the ECM/PCM idle learn procedure. See the Programming and Relearning page (Relays and Modules, Engine Control Module, Testing and Inspection).",null,null],["Start the engine. Hold engine speed at 3,000 rpm with no load (Park or neutral) until the radiator fan comes on, then let it idle.",null,null],["Test-drive for about 10 minutes, continually changing vehicle speed.",null,null],["Check CATA MON TEMP in the DATA LIST of the Honda PGM tester or HDS. Is the temperature OK?","Go to step 16.","Go to step 13 and recheck."],["Test-drive: coolant above 158 °F (70 °C); transmission in 5th gear (A/T in D); cruise control at 50 to 55 mph (80 to 88 km/h). Drive about 2 minutes, decelerate at least 4 seconds with throttle fully closed, then accelerate to 55 mph (88 km/h) with cruise for 20 minutes.",null,null],["Monitor OBD STATUS for DTC P0420 in the DTCs MENU of the Honda PGM tester or HDS. Is it EXECUTING?","Go to step 18.","Go to step 16 and recheck."],["Continue test driving until a result appears.",null,null],["Check for temporary DTCs or DTCs in the DTCs MENU of the Honda PGM tester or HDS. Are any indicated?","Go to troubleshooting for the indicated DTCs.","Go to step 20."],["Monitor OBD STATUS for DTC P0420 in the DTCs MENU of the Honda PGM tester or HDS. Is it PASSED?","Troubleshooting is complete.","If FAILED: check fuel quality. If EXECUTING: keep driving until a result appears. If Out of CONDITION: go to step 13 and recheck."]]},"P0442":{"title":"EVAP System Small Leak Detected","detection":null,"causes":["Fuel fill cap missing, loose, or not tightened to 3 clicks","Damaged fuel fill cap seal or fuel fill pipe, or tether cord caught under cap","Poor connection or damage at fuel tank vapor recirculation tube","Leak in EVAP canister, EVAP canister vent shut valve, or purge line (PCS hose)","Worn FTP sensor O-ring or EVAP canister vent shut valve case/O-ring","Loose or damaged fuel fill pipe, fuel vapor return pipe, or fuel tank vapor signal tube (SULEV models)","Faulty fuel pump base gasket or fuel tank","Intermittent poor connections or loose terminals at FTP sensor, EVAP canister purge valve, EVAP canister vent shut valve, or ECM/PCM"],"notes":["Do not exceed the specified vacuum or pressure limits. Excess pressure or vacuum can damage EVAP components or the fuel tank.","Fresh fuel has higher volatility and creates greater pressure/vacuum. Test with less than a full tank.","For better leak detection, add 1 gallon of fresh fuel just before testing, as long as the tank will not overfill.","The fuel fill cap must be tightened 3 clicks or the check engine light may come on."],"steps":[["Verify the fuel fill cap is the correct type and tightened until it clicks 3 times. If not, replace or tighten it.","Go to step 2.","Replace or tighten the cap, then go to step 22."],["Inspect the fill cap seal, the fill pipe mating surface, and confirm the tether cord is not trapped under the cap. Any damage?","Replace the fill cap or fill pipe, then go to step 22.","Go to step 3."],["Turn the ignition switch ON (II).",null,null],["Clear the DTC using the HDS.",null,null],["Run the EVAP FUNCTION TEST in the INSPECTION MENU with the HDS. Did it pass?","Intermittent failure; system OK now. Check for poor connections or loose terminals at the FTP sensor, EVAP canister purge valve, EVAP canister vent shut valve, and ECM/PCM.","Go to step 6."],["Turn the ignition switch OFF.",null,null],["Turn the ignition switch ON (II).",null,null],["Inspect the fuel tank vapor recirculation tube for a poor connection or damage. Is it OK?","Go to step 9.","Replace the fuel tank vapor recirculation tube, then go to step 22. If needed, replace the fuel tank, then go to step 22."],["Disconnect the fuel tank vapor recirculation tube from the EVAP canister and plug the EVAP canister port.",null,null],["In the engine compartment, disconnect the vacuum hose (purge line) from the EVAP canister purge valve and connect a vacuum pump to the hose. Tool: Vacuum Pump/Gauge, 0-30 in.Hg, A973X-041-XXXXX.",null,null],["Activate EVAP CVS ON in the INSPECTION MENU with the HDS.",null,null],["Apply vacuum to the hose until the FTP reads 1.90 V (-0.59 in.Hg, -15.1 mmHg).",null,null],["Monitor the FTP SENSOR in the DATA LIST with the HDS for 1 minute. Does the voltage stay near 0.2 V (0.1 in.Hg, 2.5 mmHg)?","Go to step 19.","Go to step 14."],["Turn EVAP CVS OFF in the INSPECTION MENU with the HDS.",null,null],["Disconnect the fresh air hoses from the EVAP canister vent shut valve and plug the vent shut valve ports.",null,null],["Apply vacuum to the hose disconnected in step 10 until the FTP reads 1.90 V (-0.59 in.Hg, -15.1 mmHg).",null,null],["Monitor the FTP SENSOR in the DATA LIST with the HDS for 1 minute. Does the voltage stay near 0.2 V (0.1 in.Hg, 2.5 mmHg)?","Replace the EVAP canister vent shut valve, then go to step 21.","Go to step 18."],["Check the PCS line between the EVAP canister and EVAP canister purge valve for looseness or damage.","Replace the FTP sensor O-ring, the EVAP canister vent shut valve case and O-ring, and the EVAP canister, then go to step 21.","Reconnect or repair the PCS hose, then go to step 21."],["Turn EVAP CVS OFF in the INSPECTION MENU with the HDS.",null,null],["Check the fuel fill pipe, fuel vapor return pipe, and fuel tank vapor signal tube (SULEV models) for looseness or damage.","Check the fuel pump base gasket and the fuel tank, then go to step 21.","Repair or replace damaged parts, then go to step 21."],["Reconnect all hoses.",null,null],["Turn the ignition switch ON (II).",null,null],["Reset the ECM/PCM using the HDS.",null,null],["Perform the ECM/PCM idle learn procedure. See the Programming and Relearning page under Engine Control Module (Relays and Modules, Testing and Inspection).",null,null],["Run the EVAP FUNCTION TEST in the INSPECTION MENU with the HDS. Did it pass?","Troubleshooting complete.","Check for poor connections or loose terminals at the FTP sensor, EVAP canister purge valve, EVAP canister vent shut valve, and ECM/PCM, then go to step 1."]]},"P0128":{"title":"Cooling System Malfunction","detection":"Can occasionally set when the hood is opened while the engine is running.","causes":["Thermostat fault","Radiator fan circuit, radiator fan switch circuit, or radiator fan switch fault","Engine coolant temperature (ECT) sensor fault or poor connections/loose terminals at ECT sensor and ECM/PCM","ECM/PCM software out of date or faulty ECM/PCM","Cooling system problem","Related DTCs to troubleshoot first if stored with P0128: P0112, P0113, P0116, P0117, P0118, P0125, P0300, P0301 to P0304, P0335, P0339, P2227 to P2229, P2646 to P2649, P0506, P0507, P0511"],"notes":["If other listed DTCs are stored with P0128, troubleshoot them first, then recheck for P0128.","Step 17 uses the Programming and Relearning procedure (Engine Control Module section of Relays and Modules).","Cooling temperature target for steps 13 and 22: 23 °F (-5 °C) to 95 °F (35 °C).","Hold 3,000 rpm with no load (Park or neutral) when instructed to run the radiator fan."],"steps":[["Turn the ignition switch ON (II).",null,null],["Clear the DTC with the HDS.",null,null],["Turn the blower switch OFF.",null,null],["Turn the A/C switch OFF.",null,null],["Check FAN CTRL in the DATA LIST with the HDS. Is it OFF?","Go to step 6.","Wait until FAN CTRL is off, then go to step 6."],["Check ECT SENSOR in the DATA LIST with the HDS, then check radiator fan operation. Does the fan keep running when coolant temperature is below 158 °F (70 °C)?","Check the radiator fan circuit, radiator fan switch circuit, and radiator fan switch. If OK, go to step 21.","Go to step 7."],["Start the engine. Hold engine speed at 3,000 rpm with no load (Park or neutral) until the radiator fan comes on, then let it idle.",null,null],["Turn the ignition switch OFF.",null,null],["Turn the ignition switch ON (II).",null,null],["Run the RADIATOR FAN TEST in the INSPECTION MENU with the HDS for 20 minutes.",null,null],["Check ECT SENSOR in the DATA LIST with the HDS. Is it about 151 °F (66 °C) or less, or 1.25 V or more?","Intermittent failure; system is OK at this time.","Go to step 12."],["Turn the ignition switch OFF.",null,null],["Let the engine cool until coolant temperature is between 23 °F (-5 °C) and 95 °F (35 °C).",null,null],["Replace the thermostat.",null,null],["Turn the ignition switch ON (II).",null,null],["Reset the ECM/PCM with the HDS.",null,null],["Perform the ECM/PCM idle learn procedure. See the Programming and Relearning page under Engine Control Module, Testing and Inspection.",null,null],["Start the engine. Hold engine speed at 3,000 rpm with no load (Park or neutral) until the radiator fan comes on, then let it idle.",null,null],["Check for Temporary DTCs or DTCs with the HDS. Are any indicated?","If P0128 is indicated, check the cooling system, then go to step 1. If other DTCs are indicated, go to that DTC's troubleshooting.","Go to step 20."],["Monitor OBD STATUS for DTC P0128 in the DTCs MENU with the HDS. Does it show PASSED?","Troubleshooting is complete.","If FAILED, check the cooling system, then go to step 1. If NOT COMPLETED, go to step 18 and recheck."],["Update the ECM/PCM if it lacks the latest software, or substitute a known-good ECM/PCM.",null,null],["Let the engine cool until coolant temperature is between 23 °F (-5 °C) and 95 °F (35 °C).",null,null],["Start the engine. Hold engine speed at 3,000 rpm with no load (Park or neutral) until the radiator fan comes on, then let it idle.",null,null],["Check for Temporary DTCs or DTCs with the HDS. Are any indicated?","If P0128 is indicated, check for poor connections or loose terminals at the ECT sensor and ECM/PCM, then go to step 1. If other DTCs are indicated, go to that DTC's troubleshooting.","If the ECM/PCM was updated, troubleshooting is complete. If it was substituted, replace the original ECM/PCM."]]}},"home":"https://lemon-manuals.la/Honda/2003/Accord%20L4-2.4L/","zip":"https://lemon-manuals.la/bundle/Honda/2003/Accord%20L4-2.4L/","pages":{"fuel-test":{"title":"Fuel Pressure: Testing and Inspection","url":"https://lemon-manuals.la/Honda/2003/Accord%20L4-2.4L/Repair%20and%20Diagnosis/Maintenance/Tune-up%20and%20Engine%20Performance%20Checks/Fuel%20Pressure/Testing%20and%20Inspection/","summary":"Tests fuel system pressure with a gauge set, using a short list of pass/fail steps.","specs":[{"label":"Fuel pump run time at ignition on","value":"2 seconds"},{"label":"Fuel pressure","value":"330 - 380 kPa (3.4 - 3.9 kgf/sq.cm, 48 - 55 psi)"},{"label":"Fuel pressure gauge","value":"07406-004000A"},{"label":"Fuel pressure gauge set","value":"07ZAJ-S5A0100"},{"label":"Fuel hose attachment","value":"07ZAJ-S7C0100"},{"label":"Fuel joint attachment","value":"07ZAJ-S7CA200"}],"sections":[{"heading":"Fuel Pressure Test","steps":["Relieve the fuel pressure.","Disconnect the quick-connect fitting (A). Attach the fuel pressure gauge set and the fuel pressure gauge.","Start the engine and let it idle. If the engine starts, go to step 5. If it does not start, go to step 4.","If the engine does not start, check that the fuel pump runs by listening at the fuel filler port with the fuel fill cap removed. The pump should run for 2 seconds when the ignition switch is first turned on. If it runs, go to step 5. If it does not, perform the fuel pump circuit troubleshooting.","Read the fuel pressure gauge. Pressure should be 330 - 380 kPa (3.4 - 3.9 kgf/sq.cm, 48 - 55 psi). If it is within specification, the test is complete. If it is out of specification, replace the fuel pressure regulator and the fuel filter, then recheck fuel pressure."]}],"warnings":["Relieve fuel system pressure before disconnecting the quick-connect fitting (step 1)."]},"fuel-spec":{"title":"Fuel Pressure: Specifications","url":"https://lemon-manuals.la/Honda/2003/Accord%20L4-2.4L/Repair%20and%20Diagnosis/Maintenance/Tune-up%20and%20Engine%20Performance%20Checks/Fuel%20Pressure/Specifications/","summary":"Fuel pressure regulator pressure with a fuel pressure gauge connected.","specs":[{"label":"Fuel pressure regulator pressure with gauge connected (SULEV)","value":"320 - 370 kPa (3.3 - 3.8 kgf/cm2, 47 - 54 psi)"},{"label":"Fuel pressure regulator pressure with gauge connected (except SULEV)","value":"330 - 380 kPa (3.4 - 3.9 kgf/cm2, 48 - 55 psi)"}],"sections":[],"warnings":[]},"comp-test":{"title":"Compression Check: Testing and Inspection","url":"https://lemon-manuals.la/Honda/2003/Accord%20L4-2.4L/Repair%20and%20Diagnosis/Maintenance/Tune-up%20and%20Engine%20Performance%20Checks/Compression%20Check/Testing%20and%20Inspection/","summary":"Measures engine compression with a compression gauge and the HDS, with limits and what to check if a cylinder is low.","specs":[{"label":"Compression pressure","value":"Above 930 kPa (9.5 kgf/cm2, 135 psi)"},{"label":"Maximum variation between cylinders","value":"Within 200 kPa (2.0 kgf/cm2, 28 psi)"}],"sections":[{"heading":"Engine Compression Inspection","steps":["Warm up the engine to normal operating temperature until the cooling fan comes on.","Turn the ignition switch OFF.","Connect the HDS to the data link connector (DLC).","Turn the ignition switch ON (II), then select PGM-FI, INSPECTION, and ALL INJECTORS OFF on the HDS.","Remove the four ignition coils.","Remove the four spark plugs.","Attach the compression gauge to the spark plug hole.","Open the throttle fully, crank the engine with the starter motor, and measure compression. Target: above 930 kPa (9.5 kgf/cm2, 135 psi).","Measure compression on the remaining cylinders. Maximum variation: within 200 kPa (2.0 kgf/cm2, 28 psi).","If compression is out of specification, check for damaged or worn valves and seats, a damaged cylinder head gasket, damaged or worn piston rings, and a damaged or worn piston and cylinder bore, then remeasure.","Select ECM/PCM reset on the HDS to cancel the ALL INJECTORS OFF function."]}],"warnings":["Reset the ECM/PCM with the HDS after this inspection to cancel the ALL INJECTORS OFF function. Otherwise the injectors stay disabled."]},"idle-test":{"title":"Idle Speed: Testing and Inspection","url":"https://lemon-manuals.la/Honda/2003/Accord%20L4-2.4L/Repair%20and%20Diagnosis/Maintenance/Tune-up%20and%20Engine%20Performance%20Checks/Idle%20Speed/Testing%20and%20Inspection/","summary":"Checks idle speed with no load and with a high electrical load, with limits for manual and automatic transmissions.","specs":[{"label":"Idle speed, no load, M/T","value":"700 ± 50 rpm"},{"label":"Idle speed, no load, A/T (Park or neutral)","value":"800 ± 50 rpm"},{"label":"Idle speed after 1 min with heater fan HI and A/C on, M/T","value":"720 ± 50 rpm"},{"label":"Idle speed after 1 min with heater fan HI and A/C on, A/T (Park or neutral)","value":"800 ± 50 rpm"},{"label":"Engine hold speed before idle check","value":"3,000 rpm"},{"label":"Idle duration before loaded check","value":"1 minute"}],"sections":[{"heading":"Pre-inspection checks","steps":["Leave the idle air control (IAC) valve connected.","Confirm the malfunction indicator lamp (MIL) has not been reported on.","Check ignition timing, spark plugs, air cleaner, and PCV system before checking idle speed.","Pull the parking brake lever up."]},{"heading":"Idle speed inspection","steps":["Disconnect the evaporative emission (EVAP) canister purge valve connector.","Connect the HDS to the data link connector (DLC), located under the driver's side of the dashboard.","Start the engine and hold it at 3,000 rpm with no load (in Park or neutral) until the radiator fan comes on, then let it idle.","Check idle speed with no load: headlights, blower fan, radiator fan, and air conditioner off. Compare to 700 ± 50 rpm (M/T) or 800 ± 50 rpm (A/T).","Let the engine idle for 1 minute with the heater fan switch on HI and the air conditioner on, then check idle speed. Compare to 720 ± 50 rpm (M/T) or 800 ± 50 rpm (A/T).","Reconnect the EVAP canister purge valve connector."]},{"heading":"If idle is out of specification","steps":["Perform the ECM/PCM idle learn procedure.","If idle remains out of specification, go to the Symptom Troubleshooting Index and use the Symptom Related Diagnostic Procedures."]}],"warnings":["Leave the idle air control (IAC) valve connected during the inspection.","Do not check idle speed if the malfunction indicator lamp (MIL) has been reported on. Verify ignition timing, spark plugs, air cleaner, and PCV system first.","Pull the parking brake lever up before testing.","Reconnect the EVAP canister purge valve connector when the inspection is finished."]},"idle-spec":{"title":"Idle Speed: Specifications","url":"https://lemon-manuals.la/Honda/2003/Accord%20L4-2.4L/Repair%20and%20Diagnosis/Maintenance/Tune-up%20and%20Engine%20Performance%20Checks/Idle%20Speed/Specifications/","summary":"Engine idle speed with and without a high electrical load.","specs":[{"label":"Engine idle, no load, M/T in neutral","value":"700 ± 50 rpm"},{"label":"Engine idle, no load, A/T in N or P","value":"800 ± 50 rpm"},{"label":"Engine idle, high electric load (HVAC on), M/T in neutral","value":"720 ± 50 rpm (min -1)"},{"label":"Engine idle, high electric load (HVAC on), A/T in N or P","value":"800 ± 50 rpm (min -1)"}],"sections":[],"warnings":[]},"valve-adj":{"title":"Valve Clearance: Adjustments","url":"https://lemon-manuals.la/Honda/2003/Accord%20L4-2.4L/Repair%20and%20Diagnosis/Maintenance/Tune-up%20and%20Engine%20Performance%20Checks/Valve%20Clearance/Adjustments/","summary":"Checks and adjusts intake and exhaust valve clearance cylinder by cylinder with the tappet adjust wrench set. The clearance values themselves are on the manual's Specifications page.","specs":[{"label":"Special tool","value":"Tappet adjust wrench set 07MAA-PR70100"},{"label":"Adjustment temperature","value":"Less than 100°F (38°C) cylinder head temperature"},{"label":"Intake locknut torque","value":"20 Nm (2.0 kgf-m, 14 ft. lbs.), engine oil on threads"},{"label":"Exhaust locknut torque","value":"14 Nm (1.4 kgf-m, 10 ft. lbs.), engine oil on threads"},{"label":"Crankshaft rotation between cylinders","value":"180° clockwise (camshaft pulley turns 90°)"}],"sections":[{"heading":"Valve Clearance Adjustment","steps":["Remove the cylinder head cover.","Set the No. 1 piston at TDC, with punch marks A (VTC actuator) and B (exhaust camshaft sprocket) at the top, and align TDC marks C on the VTC actuator and exhaust camshaft sprocket.","Select the feeler gauge thickness matching the valve clearance being checked.","Slide the feeler gauge between the adjusting screw and valve stem end. It should drag slightly.","If drag is too much or too little, loosen the locknut with the special tool and turn the adjusting screw until drag is correct.","Tighten the locknut to 20 Nm (2.0 kgf-m, 14 ft. lbs.) for intake or 14 Nm (1.4 kgf-m, 10 ft. lbs.) for exhaust, with engine oil on the nut threads.","Recheck the valve clearance and repeat the adjustment if necessary.","Rotate the crankshaft 180° clockwise (camshaft pulley turns 90°).","Check and adjust valve clearance on No. 3 cylinder if necessary.","Rotate the crankshaft 180° clockwise (camshaft pulley turns 90°).","Check and adjust valve clearance on No. 4 cylinder if necessary.","Rotate the crankshaft 180° clockwise (camshaft pulley turns 90°).","Check and adjust valve clearance on No. 2 cylinder if necessary.","Install the cylinder head cover."]}],"warnings":["Adjust valves only when cylinder head temperature is less than 100°F (38°C)."]}},"tree":[{"t":"Repair and Diagnosis","url":"https://lemon-manuals.la/Honda/2003/Accord%20L4-2.4L/Repair%20and%20Diagnosis/","kids":[{"t":"Diagnostic Trouble Codes (DTC)","url":"https://lemon-manuals.la/Honda/2003/Accord%20L4-2.4L/Repair%20and%20Diagnosis/A%20L%20L%20%20Diagnostic%20Trouble%20Codes%20%28%20DTC%20%29/","dtc":true,"note":"Test procedures for the trouble codes imported so far. The rest of the codes are in the manual on lemon-manuals.la."},{"t":"Maintenance","kids":[{"t":"Alignment"},{"t":"Tune-up and Engine Performance Checks","kids":[{"t":"Fuel Pressure","url":"https://lemon-manuals.la/Honda/2003/Accord%20L4-2.4L/Repair%20and%20Diagnosis/Maintenance/Tune-up%20and%20Engine%20Performance%20Checks/Fuel%20Pressure/","kids":[{"t":"Testing and Inspection","page":"fuel-test"},{"t":"Specifications","page":"fuel-spec"}]},{"t":"Idle Speed","url":"https://lemon-manuals.la/Honda/2003/Accord%20L4-2.4L/Repair%20and%20Diagnosis/Maintenance/Tune-up%20and%20Engine%20Performance%20Checks/Idle%20Speed/","kids":[{"t":"Testing and Inspection","page":"idle-test"},{"t":"Specifications","page":"idle-spec"}]},{"t":"Compression Check","url":"https://lemon-manuals.la/Honda/2003/Accord%20L4-2.4L/Repair%20and%20Diagnosis/Maintenance/Tune-up%20and%20Engine%20Performance%20Checks/Compression%20Check/","kids":[{"t":"Testing and Inspection","page":"comp-test"},{"t":"Specifications"}]},{"t":"Valve Clearance","url":"https://lemon-manuals.la/Honda/2003/Accord%20L4-2.4L/Repair%20and%20Diagnosis/Maintenance/Tune-up%20and%20Engine%20Performance%20Checks/Valve%20Clearance/","kids":[{"t":"Adjustments","page":"valve-adj"},{"t":"Specifications"}]},{"t":"Ignition Timing","url":"https://lemon-manuals.la/Honda/2003/Accord%20L4-2.4L/Repair%20and%20Diagnosis/Maintenance/Tune-up%20and%20Engine%20Performance%20Checks/Ignition%20Timing/Testing%20and%20Inspection/"}]},{"t":"Timing Component Alignment Marks"},{"t":"Drive Belt"},{"t":"Filters"},{"t":"Hoses"},{"t":"Fluids"},{"t":"Brake Bleeding"},{"t":"Air Bag(s) Arming and Disarming"},{"t":"Fuses and Circuit Breakers"},{"t":"Service Reminder Indicators"},{"t":"Wheels and Tires"},{"t":"Towing Information"},{"t":"Vehicle Lifting"},{"t":"Description and Operation"},{"t":"Service Intervals"},{"t":"Diagrams"},{"t":"Technical Service Bulletins"}]},{"t":"Relays and Modules","kids":[{"t":"Accessories and Optional Equipment"},{"t":"Body and Frame"},{"t":"Brakes and Traction Control"},{"t":"Cooling System"},{"t":"Cruise Control"},{"t":"HVAC"},{"t":"Instrument Panel"},{"t":"Lighting and Horns"},{"t":"Power and Ground Distribution"},{"t":"Powertrain Management"},{"t":"Restraints and Safety Systems"},{"t":"Starting and Charging"},{"t":"Transmission and Drivetrain"},{"t":"Windows and Glass"}]},{"t":"Sensors and Switches","kids":[{"t":"Accessories and Optional Equipment"},{"t":"Body and Frame"},{"t":"Brakes and Traction Control"},{"t":"Cooling System"},{"t":"Cruise Control"},{"t":"Engine"},{"t":"HVAC"},{"t":"Instrument Panel"},{"t":"Lighting and Horns"},{"t":"Powertrain Management"},{"t":"Restraints and Safety Systems"},{"t":"Starting and Charging"},{"t":"Steering and Suspension"},{"t":"Transmission and Drivetrain"},{"t":"Windows and Glass"},{"t":"Wiper and Washer Systems"}]},{"t":"Engine, Cooling and Exhaust","more":true,"kids":[{"t":"Engine"}]}]},{"t":"Parts and Labor","url":"https://lemon-manuals.la/Honda/2003/Accord%20L4-2.4L/Parts%20and%20Labor/","more":true,"note":"Parts information and labor times, organized by system. This part of the manual opens on lemon-manuals.la.","kids":[{"t":"Relays and Modules"},{"t":"Sensors and Switches"},{"t":"Maintenance"},{"t":"Engine, Cooling and Exhaust"},{"t":"Powertrain Management"},{"t":"Transmission and Drivetrain"},{"t":"Brakes and Traction Control"}]}]}];
+function manualFor(v){
+  if(!v)return null;
+  for(var i=0;i<MANUALS.length;i++){
+    var m=MANUALS[i],x=m.match;
+    if(v.make===x.make&&+v.year===x.year&&(v.model||"").toLowerCase().indexOf(x.model.toLowerCase())===0){
+      var e=(v.engine||"").toLowerCase();
+      return{m:m,fit:!e?"maybe":(e.indexOf(x.engine)>=0?"yes":"no")};
+    }
+  }
+  return null;
+}
+function procFor(code,v){var f=manualFor(v);if(f&&f.fit!=="no"&&f.m.procs[code])return{m:f.m,p:f.m.procs[code],fit:f.fit};return null}
+function srcUrl(m,code){return m.base+code+"/"}
+function clip(t,n){t=String(t);return t.length>n?t.slice(0,n-1)+"…":t}
+function linkSteps(t){return esc(t).replace(/\b(steps?) (\d{1,3})\b/gi,function(x,w,n){return '<button class="ref" data-act="goref" data-n="'+n+'">'+w+' '+n+'</button>'})}
+function manualLine(v){
+  var f=manualFor(v),t;
+  if(!f)t="No service manual is imported for this vehicle yet. Codes show generic guidance.";
+  else if(f.fit==="no")t="Manual procedures are imported for the 2003 Accord 2.4L only. This vehicle's engine is different, so codes show generic guidance.";
+  else t=Object.keys(f.m.procs).length+" trouble code procedures and "+Object.keys(f.m.pages||{}).length+" other pages imported from the "+f.m.label+" manual."+(f.fit==="maybe"?" Add the engine to confirm it is the 2.4L.":"");
+  return '<div class="small" style="border-top:1px solid #34444f;padding-top:10px;color:var(--panel-ink)"><span class="muted">Service manual</span><br>'+esc(t)+'</div>';
+}
+function manualSearch(q){
+  var words=q.toLowerCase().split(/\s+/).filter(Boolean),out=[];
+  MANUALS.forEach(function(m){Object.keys(m.procs).sort().forEach(function(code){
+    var p=m.procs[code];
+    var hay=(code+" "+p.title+" "+p.causes.join(" ")+" "+p.notes.join(" ")+" "+p.steps.map(function(s){return s[0]+" "+(s[1]||"")+" "+(s[2]||"")}).join(" ")).toLowerCase();
+    if(words.every(function(w){return hay.indexOf(w)>=0})){
+      var si=-1,best=0;for(var i=0;i<p.steps.length;i++){var st=p.steps[i][0].toLowerCase(),sc=0;words.forEach(function(w){if(st.indexOf(w)>=0)sc++});if(sc>best){best=sc;si=i}}
+      out.push({m:m,code:code,p:p,step:si});
+    }
+  })});
+  return out;
+}
+
+/* ---------- VIN decoding ---------- */
+var VAL={A:1,B:2,C:3,D:4,E:5,F:6,G:7,H:8,J:1,K:2,L:3,M:4,N:5,P:7,R:9,S:2,T:3,U:4,V:5,W:6,X:7,Y:8,Z:9};
+var WT=[8,7,6,5,4,3,2,10,0,9,8,7,6,5,4,3,2];
+function checkDigitOk(v){var s=0;for(var i=0;i<17;i++){var c=v[i];var n=/\d/.test(c)?+c:VAL[c];s+=n*WT[i]}var r=s%11;return v[8]===(r===10?"X":String(r))}
+var YC="ABCDEFGHJKLMNPRSTVWXY123456789";
+function vinYear(v){var i=YC.indexOf(v[9]);if(i<0)return null;var y=(/[A-Z]/.test(v[6])?2010:1980)+i;if(y>new Date().getFullYear()+1)y-=30;return y}
+var HONDA03={
+  CM5:{model:"Accord",body:"Sedan",disp:"2.4",layout:"I4",note:"Accord 4-door sedan, 2.4L"},
+  CM6:{model:"Accord",body:"Sedan",disp:"3.0",layout:"V6",note:"Accord 4-door sedan, 3.0L V6"},
+  CM7:{model:"Accord",body:"Coupe",disp:"2.4",layout:"I4",note:"Accord 2-door coupe, 2.4L"},
+  CM8:{model:"Accord",body:"Coupe",disp:"3.0",layout:"V6",note:"Accord 2-door coupe, 3.0L V6"},
+  RD6:{model:"CR-V",body:"SUV",disp:"2.4",layout:"I4",note:"CR-V, 2.4L"},
+  RD7:{model:"CR-V",body:"SUV",disp:"2.4",layout:"I4",note:"CR-V, 2.4L"},
+  YH1:{model:"Element",body:"SUV",disp:"2.4",layout:"I4",note:"Element, 2.4L"},
+  YH2:{model:"Element",body:"SUV",disp:"2.4",layout:"I4",note:"Element, 2.4L"}
+};
+function titleCase(s){return String(s||"").toLowerCase().replace(/(^|[\s-])([a-z])/g,function(m,a,b){return a+b.toUpperCase()})}
+function localDecode(v){
+  var make=WMI[v.slice(0,3)]||"",yr=vinYear(v);
+  var f=blankForm();
+  f.vin=v;f.year=yr||"";f.make=make;f.country=COUNTRY[v[0]]||"";f.src="offline";f.ok=checkDigitOk(v);
+  var rule=(make==="Honda"&&yr===2003)?HONDA03[v.slice(3,6)]:null;
+  if(rule){
+    f.model=rule.model;f.body=rule.body;f.disp=rule.disp;f.layout=rule.layout;f.fuel="Gasoline";f.asp="Naturally aspirated";
+    f.extra.push(["Model code",v.slice(3,6)+": "+rule.note+" (from the manual's model list)"]);
+  }
+  if(f.country)f.extra.push(["Country (first character)",f.country]);
+  return f;
+}
+function layoutOf(cfg,cyl){
+  var c=parseInt(cyl,10),g=String(cfg||"").toLowerCase();
+  if(!c&&/rotary/.test(g))return"Rotary";
+  if(/in-?line|straight/.test(g)&&[3,4,5,6].indexOf(c)>=0)return"I"+c;
+  if(/v-?shaped|^v/.test(g)&&[6,8,10,12].indexOf(c)>=0)return"V"+c;
+  if(/flat|boxer|horizontal/.test(g)&&[4,6].indexOf(c)>=0)return"H"+c;
+  if(/w-?shaped/.test(g)&&c===12)return"W12";
+  return"";
+}
+function fuelOf(x){
+  var el=String(x.ElectrificationLevel||""),ft=String(x.FuelTypePrimary||"");
+  if(/BEV/i.test(el))return"Electric";
+  if(/PHEV|plug/i.test(el))return"Plug-in hybrid";
+  if(/hybrid|HEV/i.test(el))return"Hybrid (gasoline-electric)";
+  if(/flex|e85/i.test(ft))return"Flex fuel (E85)";
+  if(/gasoline/i.test(ft))return"Gasoline";
+  if(/diesel/i.test(ft))return"Diesel";
+  if(/electric/i.test(ft))return"Electric";
+  if(/natural gas|cng/i.test(ft))return"Compressed natural gas (CNG)";
+  if(/hydrogen/i.test(ft))return"Hydrogen";
+  return"";
+}
+function transOf(style,speeds){
+  var t=String(style||"").toLowerCase(),n=parseInt(speeds,10),c;
+  if(!t)return"";
+  if(/continuously|cvt/.test(t))return"CVT";
+  if(/dual|dct/.test(t))return"Dual-clutch (DCT)";
+  if(/automated manual|amt/.test(t))return"Automated manual";
+  if(/manual|standard/.test(t)){c="Manual, "+n+"-speed";return TRANS_ALL.indexOf(c)>=0?c:"Manual (speeds unknown)"}
+  if(/automatic/.test(t)){c="Automatic, "+n+"-speed";return TRANS_ALL.indexOf(c)>=0?c:"Automatic (speeds unknown)"}
+  return"";
+}
+function driveOf(t){
+  t=String(t||"");
+  if(/fwd|front/i.test(t))return DRIVES[0];
+  if(/rwd|rear/i.test(t))return DRIVES[1];
+  if(/awd|all-?wheel/i.test(t))return DRIVES[2];
+  if(/4wd|4x4|four/i.test(t))return DRIVES[3];
+  return"";
+}
+function bodyOf(t){
+  t=String(t||"");
+  if(/crossover|cuv/i.test(t))return"Crossover";
+  if(/sport utility|suv|multi-purpose/i.test(t))return"SUV";
+  if(/sedan|saloon/i.test(t))return"Sedan";
+  if(/coupe/i.test(t))return"Coupe";
+  if(/hatchback|liftback|notchback/i.test(t))return"Hatchback";
+  if(/wagon/i.test(t))return"Wagon";
+  if(/pickup/i.test(t))return"Pickup";
+  if(/minivan|van/i.test(t))return"Van or minivan";
+  if(/convertible|cabrio|roadster/i.test(t))return"Convertible";
+  return"";
+}
+function mapVpic(x,v){
+  var f=blankForm(),d=parseFloat(x.DisplacementL),hp=parseFloat(x.EngineHP);
+  f.vin=v;f.src="online";f.ok=checkDigitOk(v);f.country=COUNTRY[v[0]]||"";
+  f.make=titleCase(x.Make);f.model=x.Model||"";f.year=+x.ModelYear||vinYear(v)||"";
+  f.trim=x.Trim||x.Series||"";
+  f.disp=isNaN(d)?"":d.toFixed(1);
+  f.layout=layoutOf(x.EngineConfiguration,x.EngineCylinders);
+  f.fuel=fuelOf(x);
+  f.asp=/yes/i.test(x.Turbo||"")?"Turbocharged":"";
+  f.trans=transOf(x.TransmissionStyle,x.TransmissionSpeeds);
+  f.drive=driveOf(x.DriveType);
+  f.body=bodyOf(x.BodyClass);
+  f.hp=isNaN(hp)?"":String(Math.round(hp));
+  var plant=[x.PlantCity,x.PlantState].filter(Boolean).map(titleCase).concat([x.PlantCountry].filter(Boolean)).join(", ");
+  [["Manufacturer",titleCase(x.Manufacturer||x.ManufacturerName)],["Built at",plant],["Vehicle type",titleCase(x.VehicleType)],["Body class",x.BodyClass],["Doors",x.Doors],["Engine model",x.EngineModel],["Gross weight rating",x.GVWR],["Country (first character)",f.country]]
+    .forEach(function(r){if(r[1])f.extra.push(r)});
+  if(x.ErrorCode&&String(x.ErrorCode)!=="0"&&x.ErrorText)f.note=String(x.ErrorText);
+  return f;
+}
+async function decodeVin(v){
+  try{
+    var ctrl=new AbortController();var t=setTimeout(function(){ctrl.abort()},6000);
+    var r=await fetch("https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVinValues/"+v+"?format=json",{signal:ctrl.signal});
+    clearTimeout(t);var j=await r.json();var x=j.Results&&j.Results[0];
+    if(x&&x.Make)return mapVpic(x,v);
+  }catch(e){}
+  return localDecode(v);
+}
+
+/* ---------- Screens ---------- */
+/* ---------- Vehicle details ---------- */
+var DISP=[];for(var di=6;di<=84;di++)DISP.push((di/10).toFixed(1));
+var LAYOUTS=[["I3","Inline 3 (I3)"],["I4","Inline 4 (I4)"],["I5","Inline 5 (I5)"],["I6","Inline 6 (I6)"],["V6","V6"],["V8","V8"],["V10","V10"],["V12","V12"],["H4","Flat 4 (H4)"],["H6","Flat 6 (H6)"],["W12","W12"],["Rotary","Rotary"],["Electric motor","Electric motor"]];
+var FUELS=["Gasoline","Diesel","Hybrid (gasoline-electric)","Plug-in hybrid","Electric","Flex fuel (E85)","Compressed natural gas (CNG)","Hydrogen"];
+var ASPS=["Naturally aspirated","Turbocharged","Twin-turbocharged","Supercharged","Turbocharged and supercharged"];
+var TRANS_GROUPS=[
+  {g:"Manual",o:["Manual, 4-speed","Manual, 5-speed","Manual, 6-speed","Manual, 7-speed","Manual (speeds unknown)"]},
+  {g:"Automatic",o:["Automatic, 3-speed","Automatic, 4-speed","Automatic, 5-speed","Automatic, 6-speed","Automatic, 7-speed","Automatic, 8-speed","Automatic, 9-speed","Automatic, 10-speed","Automatic (speeds unknown)"]},
+  {g:"Other",o:["CVT","Dual-clutch (DCT)","Automated manual","Single-speed (electric)"]}
+];
+var TRANS_ALL=[].concat.apply([],TRANS_GROUPS.map(function(g){return g.o}));
+var DRIVES=["Front-wheel drive (FWD)","Rear-wheel drive (RWD)","All-wheel drive (AWD)","Four-wheel drive (4WD)"];
+var BODIES=["Sedan","Coupe","Hatchback","Wagon","SUV","Crossover","Pickup","Van or minivan","Convertible"];
+var KNOWN=[
+  {make:"Honda",model:"Accord",y:[2003,2003],engines:[{d:"2.4",l:"I4",t:["Manual, 5-speed","Automatic, 5-speed"]},{d:"3.0",l:"V6",t:["Manual, 6-speed","Automatic, 5-speed"]}]},
+  {make:"Honda",model:"CR-V",y:[2003,2003],engines:[{d:"2.4",l:"I4",t:["Manual, 5-speed","Automatic, 4-speed"]}]},
+  {make:"Honda",model:"Civic",y:[2003,2003],engines:[{d:"1.7",l:"I4",t:["Manual, 5-speed","Automatic, 4-speed","CVT"]},{d:"1.3",l:"I4",f:"Hybrid (gasoline-electric)",t:["Manual, 5-speed","CVT"]},{d:"2.0",l:"I4",t:["Manual, 5-speed"]}]},
+  {make:"Honda",model:"Element",y:[2003,2003],engines:[{d:"2.4",l:"I4",t:["Manual, 5-speed","Automatic, 4-speed"]}]},
+  {make:"Honda",model:"Insight",y:[2003,2003],engines:[{d:"1.0",l:"I3",f:"Hybrid (gasoline-electric)",t:["Manual, 5-speed","CVT"]}]},
+  {make:"Honda",model:"Odyssey",y:[2003,2003],engines:[{d:"3.5",l:"V6",t:["Automatic, 5-speed"]}]},
+  {make:"Honda",model:"Pilot",y:[2003,2003],engines:[{d:"3.5",l:"V6",t:["Automatic, 5-speed"]}]},
+  {make:"Honda",model:"S2000",y:[2003,2003],engines:[{d:"2.0",l:"I4",t:["Manual, 6-speed"]}]}
+];
+function known(f){
+  var y=+f.year,md=String(f.model==="__other"?f.custom:f.model||"").toLowerCase();
+  for(var i=0;i<KNOWN.length;i++){var k=KNOWN[i];if(k.make===f.make&&k.model.toLowerCase()===md&&y>=k.y[0]&&y<=k.y[1])return k}
+  return null;
+}
+function blankForm(){return{year:"",make:"",model:"",custom:"",trim:"",disp:"",layout:"",fuel:"",asp:"",trans:"",drive:"",body:"",vin:"",src:"manual",extra:[],country:"",hp:""}}
+function engineLabel(f){
+  var p=[];
+  if(f.disp)p.push(f.disp+"L");
+  if(f.layout)p.push(f.layout);
+  if(f.asp&&f.asp!=="Naturally aspirated")p.push(f.asp.toLowerCase());
+  if(f.fuel&&f.fuel!=="Gasoline")p.push(f.fuel.toLowerCase().replace(/ \(.*\)/,""));
+  return p.join(" ");
+}
+function buildVehicle(f,id){
+  var model=f.model==="__other"?String(f.custom||"").trim():f.model;
+  return{id:id||uid(),year:+f.year,make:f.make,model:model,trim:String(f.trim||"").trim(),disp:f.disp,layout:f.layout,fuel:f.fuel,asp:f.asp,engine:engineLabel(f),trans:f.trans,drive:f.drive,body:f.body,vin:f.vin||"",src:f.src||"manual",extra:f.extra||[],country:f.country||"",hp:f.hp||""};
+}
+function formFromVehicle(v){
+  var f=blankForm();
+  ["year","make","model","trim","disp","layout","fuel","asp","trans","drive","body","vin","src","country","hp"].forEach(function(k){if(v[k]!==undefined&&v[k]!==null)f[k]=v[k]});
+  f.extra=v.extra||[];
+  if(!f.disp){var m=/(\d\.\d)\s*L/i.exec(v.engine||"");if(m)f.disp=m[1]}
+  if(!f.layout){var c=/(\d)-cyl/i.exec(v.engine||"");if(c&&["3","4","5"].indexOf(c[1])>=0)f.layout="I"+c[1]}
+  return f;
+}
+function formTarget(){return S.editing?S.eform:(S.mode==="vin"?S.draft:S.ymm)}
+var FIELD={fYear:"year",fMake:"make",fModel:"model",fTrim:"trim",fCustom:"custom",fDisp:"disp",fLayout:"layout",fFuel:"fuel",fAsp:"asp",fTrans:"trans",fDrive:"drive",fBody:"body"};
+function opt(v,label,sel){return '<option value="'+esc(v)+'"'+(sel?" selected":"")+'>'+esc(label||v)+'</option>'}
+function selectHtml(id,label,items,val,hint,dis){
+  var flat=[];
+  items.forEach(function(g){if(g&&g.g){g.o.forEach(function(o){flat.push(typeof o==="string"?o:o[0])})}else flat.push(typeof g==="string"?g:g[0])});
+  var h='<label for="'+id+'">'+label+'<select id="'+id+'"'+(dis?" disabled":"")+'><option value="">'+(hint||"Choose")+'</option>';
+  if(val&&flat.indexOf(val)<0)h+=opt(val,val,true);
+  items.forEach(function(g){
+    if(g&&g.g)h+='<optgroup label="'+esc(g.g)+'">'+g.o.map(function(o){return typeof o==="string"?opt(o,o,o===val):opt(o[0],o[1],o[0]===val)}).join("")+'</optgroup>';
+    else h+=typeof g==="string"?opt(g,g,g===val):opt(g[0],g[1],g[0]===val);
+  });
+  return h+'</select></label>';
+}
+function engineChips(f){
+  var k=known(f);if(!k)return"";
+  return '<div class="small muted">Common for this vehicle</div><div class="chips">'+k.engines.map(function(e){
+    var on=f.disp===e.d&&f.layout===e.l;
+    return '<button class="chip'+(on?" on":"")+'" data-act="pickeng" data-d="'+e.d+'" data-l="'+e.l+'" data-f="'+esc(e.f||"")+'">'+e.d+'L '+e.l+(e.f?" hybrid":"")+'</button>';
+  }).join("")+'</div>';
+}
+function transChips(f){
+  var k=known(f);if(!k)return"";
+  var sel=k.engines.filter(function(e){return e.d===f.disp&&e.l===f.layout}),list=[];
+  (sel.length?sel:k.engines).forEach(function(e){e.t.forEach(function(t){if(list.indexOf(t)<0)list.push(t)})});
+  return '<div class="small muted">Common for this vehicle'+(sel.length?" with this engine":"")+'</div><div class="chips">'+list.map(function(t){
+    return '<button class="chip'+(f.trans===t?" on":"")+'" data-act="picktrans" data-t="'+esc(t)+'">'+esc(t)+'</button>';
+  }).join("")+'</div>';
+}
+function formHtml(f){
+  var yrs=[];for(var i=new Date().getFullYear()+1;i>=1960;i--)yrs.push(String(i));
+  var makes=Object.keys(MAKES);if(f.make&&makes.indexOf(f.make)<0)makes.unshift(f.make);
+  var models=(MAKES[f.make]||[]).slice();if(f.model&&f.model!=="__other"&&models.indexOf(f.model)<0)models.unshift(f.model);
+  var h='<div class="grid2">'+selectHtml("fYear","Year",yrs,String(f.year||""))+selectHtml("fMake","Make",makes,f.make||"")+'</div>'
+   +selectHtml("fModel","Model",models.concat([["__other","Other"]]),f.model||"",f.make?"Choose":"Choose a make first",!f.make);
+  if(f.model==="__other")h+='<label for="fCustom">Model name<input id="fCustom" value="'+esc(f.custom||"")+'"></label>';
+  h+='<label for="fTrim">Trim, optional<input id="fTrim" value="'+esc(f.trim||"")+'" placeholder="EX-L"></label>';
+  h+=aiBlock(f)+optsNote(f);
+  h+='<h2 style="margin-top:4px">Engine</h2>'+engineChips(f)
+   +'<div class="grid2">'+selectHtml("fDisp","Displacement",dispItems(f),f.disp||"")+selectHtml("fLayout","Layout",layoutItems(f),f.layout||"")+selectHtml("fFuel","Fuel",FUELS,f.fuel||"")+selectHtml("fAsp","Aspiration",ASPS,f.asp||"")+'</div>';
+  h+='<h2 style="margin-top:4px">Transmission and drive</h2>'+transChips(f)+selectHtml("fTrans","Transmission",transItems(f),f.trans||"")
+   +'<div class="grid2">'+selectHtml("fDrive","Drive",DRIVES,f.drive||"")+selectHtml("fBody","Body",bodyItems(f),f.body||"")+'</div>';
+  return h;
+}
+function vinParts(vin){
+  vin=String(vin||"").toUpperCase();
+  if(vin.length!==17)return[];
+  var wmi=vin.slice(0,3),yr=vinYear(vin);
+  return[["Manufacturer code",wmi+(WMI[wmi]?" · "+WMI[wmi]:"")],["Country (first character)",COUNTRY[vin[0]]||"Not in the offline table"],["Vehicle descriptor, positions 4 to 8",vin.slice(3,8)],["Check digit",vin[8]+" · "+(checkDigitOk(vin)?"valid":"does not match")],["Model year code",vin[9]+(yr?" · "+yr:"")],["Plant code",vin[10]],["Serial number",vin.slice(11)]];
+}
+function kvRows(rows){return rows.map(function(r){return '<div class="vp"><span class="k">'+esc(r[0])+'</span><span class="v">'+esc(r[1])+'</span></div>'}).join("")}
+function vinPartsHtml(vin){var p=vinParts(vin);return p.length?'<details class="vinparts"><summary>VIN breakdown</summary><div>'+kvRows(p)+'</div></details>':""}
+function decodedHint(d){
+  if(d.aiBusy)return"";
+  var miss=[];
+  if(!d.disp&&!d.layout)miss.push("engine");
+  if(!d.trans)miss.push("transmission");
+  if(!d.drive)miss.push("drive");
+  return miss.length?'<div class="info">The VIN data did not give the '+miss.join(", ")+'. Choose '+(miss.length>1?"them":"it")+' below.</div>':"";
+}
+function draftCard(){
+  var d=S.draft,h='<div class="card" style="background:var(--surface2);border-color:transparent"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><strong>Decoded</strong><span class="pill '+(d.ok?"sev1":"sev2")+'">'+(d.ok?"Check digit valid":"Check digit does not match")+'</span></div>';
+  if(d.note)h+='<div class="note">'+esc(d.note)+'</div>';
+  h+=aiNote(d)+decodedHint(d)+formHtml(d);
+  if(d.extra&&d.extra.length)h+='<div><h2>More from the VIN</h2>'+kvRows(d.extra)+'</div>';
+  h+=vinPartsHtml(d.vin)+'<div class="small muted">'+(d.src==="online"?"Decoded online with the NHTSA vPIC database.":"Decoded offline from the VIN.")+'</div><button class="btn" data-act="savevin">Save to garage</button></div>';
+  return h;
+}
+function addCard(){
+  var h='<section class="card"><h2>Add a vehicle</h2><div class="seg" role="group" aria-label="How to find the vehicle"><button data-act="mode" data-mode="vin" aria-pressed="'+(S.mode==="vin")+'">VIN</button><button data-act="mode" data-mode="ymm" aria-pressed="'+(S.mode==="ymm")+'">Year / Make / Model</button></div>';
+  if(S.mode==="vin"){
+    h+='<label for="vin">VIN, 17 characters<input id="vin" class="mono" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="17" placeholder="1HGCM82633A004352" value="'+esc(S.vin)+'"></label>'
+     +'<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" data-act="decode"'+(S.busy?" disabled":"")+'>'+(S.busy?"Working":"Decode VIN")+'</button><button class="btn sec" data-act="scan"'+(S.busy?" disabled":"")+'>Scan with camera</button><button class="btn sec" data-act="sample">Use a sample VIN</button></div>'
+     +'<input type="file" id="scan" accept="image/*" capture="environment" hidden>'
+     +'<details class="vinparts"'+(S.paste?" open":"")+'><summary>Decode with the NHTSA website</summary><div class="small muted" style="padding-bottom:8px">This page cannot reach NHTSA itself. Open their decoder, copy the results table, and paste it here.</div>'
+     +(S.vin.length===17?'<a class="btn sec" href="https://vpic.nhtsa.dot.gov/decoder/Decoder?VIN='+encodeURIComponent(S.vin)+'" target="_blank" rel="noopener">Open NHTSA decoder</a>':'<a class="btn sec" href="https://vpic.nhtsa.dot.gov/decoder/" target="_blank" rel="noopener">Open NHTSA decoder</a>')
+     +'<label for="paste">Pasted results<textarea id="paste" rows="5" placeholder="Make HONDA&#10;Model Accord&#10;Displacement (L) 3.0">'+esc(S.paste)+'</textarea></label><button class="btn sec" data-act="applypaste">Use pasted result</button></details>';
+    if(S.msg)h+='<div class="'+S.msg.t+'">'+esc(S.msg.m)+'</div>';
+    if(S.draft)h+=draftCard();
+  }else{
+    h+=formHtml(S.ymm)+'<button class="btn" data-act="saveymm">Save to garage</button>';
+    if(S.msg)h+='<div class="'+S.msg.t+'">'+esc(S.msg.m)+'</div>';
+  }
+  return h+'</section>';
+}
+function editCard(){
+  var h='<section class="card"><h2>Edit vehicle</h2>'+formHtml(S.eform);
+  if(S.msg)h+='<div class="'+S.msg.t+'">'+esc(S.msg.m)+'</div>';
+  return h+'<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" data-act="saveedit">Save changes</button><button class="btn sec" data-act="canceledit">Cancel</button></div></section>';
+}
+function screenVehicle(){
+  var v=activeV(),h='<div><div class="eyebrow">Garage</div><h1>Your vehicle</h1></div>';
+  if(v){
+    var spec=function(k,val){return '<div class="kv"><div class="k">'+k+'</div><div class="v">'+(val?esc(val):'<span class="muted">Not set</span>')+'</div></div>'};
+    h+='<section class="panel"><div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><span class="eyebrow" style="color:var(--panel-muted)">Active vehicle</span>'+(v.sample?'<span class="pill" style="background:#2c3d49;color:var(--panel-ink)">Sample</span>':'')+'</div>'
+     +'<div><h2 style="font-size:26px;line-height:1.15;text-transform:none;letter-spacing:0;color:var(--panel-ink);font-weight:600;font-family:var(--display)">'+esc(vname(v))+(v.trim?' <span style="font-weight:500;color:var(--panel-muted)">'+esc(v.trim)+'</span>':'')+'</h2>'+(v.vin?'<div class="mono small muted" style="margin-top:4px;word-break:break-all">VIN '+esc(v.vin)+'</div>':'')+'</div>'
+     +'<div class="grid2" style="border-top:1px solid #34444f;padding-top:12px">'+spec("Engine",v.engine)+spec("Transmission",v.trans)+spec("Drive",v.drive)+spec("Body",v.body)+(v.hp?spec("Power",v.hp+" hp"):"")+'</div>'
+     +(v.extra&&v.extra.length?'<div style="border-top:1px solid #34444f;padding-top:6px">'+kvRows(v.extra)+'</div>':'')
+     +manualLine(v)
+     +vinPartsHtml(v.vin)
+     +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px"><button class="btn" data-act="goto" data-tab="codes">Look up a code</button><button class="btn" style="background:transparent;color:var(--panel-ink);border:1px solid #4a5b67" data-act="goto" data-tab="manuals">Manual</button></div>'
+     +'<button class="btn" style="background:transparent;color:var(--panel-ink);border:1px solid #4a5b67" data-act="edit">Edit engine, transmission and details</button></section>';
+  }
+  h+=S.editing&&S.eform?editCard():addCard();
+  if(S.vehicles.length>1||(S.vehicles.length===1&&!v)){
+    h+='<section class="list"><h2>Garage</h2>';
+    S.vehicles.forEach(function(x){
+      var on=x.id===S.active,cf=S.confirm===x.id;
+      h+='<div class="card" style="flex-direction:row;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap"><div style="min-width:0"><div style="font-weight:600">'+esc(vname(x))+(x.sample?' <span class="pill tag">Sample</span>':'')+'</div>'+(x.engine?'<div class="small muted">'+esc(x.engine)+'</div>':'')+'</div><div style="display:flex;gap:6px">'
+       +(on?'<span class="pill sev1" style="align-self:center">Active</span>':'<button class="btn sec" data-act="switch" data-id="'+x.id+'">Use</button>')
+       +'<button class="btn quiet" style="color:var(--bad)" data-act="remove" data-id="'+x.id+'">'+(cf?"Confirm remove":"Remove")+'</button></div></div>';
+    });
+    h+='</section>';
+  }
+  return h+connCard();
+}
+function codeRow(c){var inM=!!procFor(c[0],activeV());return '<button class="row" data-act="opencode" data-code="'+c[0]+'"><span class="code">'+c[0]+'</span><span class="rt">'+esc(c[1])+(inM?'<div class="small" style="color:var(--accent);font-weight:600">In your service manual</div>':'')+'</span>'+pill(c[3])+'</button>'}
+function screenCodes(){
+  if(S.proc)return screenProc();
+  if(S.code)return screenDetail();
+  var v=activeV();
+  var h='<div><div class="eyebrow">'+(v?esc(vname(v)):"No vehicle selected")+'</div><h1>Trouble codes</h1></div>'
+   +'<label for="q" style="position:absolute;left:-9999px">Search codes</label><input id="q" class="mono" style="min-height:50px;font-size:16px;border:2px solid var(--ink)" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="P0301 or a word like misfire" value="'+esc(S.q)+'">'
+   +'<div id="results" class="list">'+resultsHtml(S.q)+'</div>';
+  if(!v)h+=noVeh();
+  return h;
+}
+function resultsHtml(q){
+  q=q.trim();var h="";
+  if(!q){
+    h+='<h2>Common codes</h2><div class="list">'+COMMON.map(function(c){return codeRow(BYCODE[c])}).join("")+'</div>';
+    if(S.recent.length)h+='<h2 style="margin-top:6px">Recent</h2><div class="chips">'+S.recent.map(function(c){return '<button class="chip" data-act="opencode" data-code="'+c+'">'+c+'</button>'}).join("")+'</div>';
+    return h;
+  }
+  var nq=normCode(q),res=[];
+  if(/^[PCBU][0-9A-F]{1,4}$/.test(nq)){
+    var ex=BYCODE[nq];
+    DTC.forEach(function(r){if(r[0].indexOf(nq)===0&&r!==ex)res.push(r)});
+    if(ex)res.unshift(ex);
+    if(nq.length===5&&!ex)return unknownCode(nq)+(res.length?'<h2>Similar</h2>'+res.map(codeRow).join(""):"");
+  }else{
+    var words=q.toLowerCase().split(/\s+/);
+    DTC.forEach(function(r){var t=(r[0]+" "+r[1]+" "+SYSLAB[r[2]]+" "+FAM[r[4]].n+" "+r[5]).toLowerCase();if(words.every(function(w){return t.indexOf(w)>=0}))res.push(r)});
+  }
+  if(!res.length)return '<div class="info">No generic code matches "'+esc(q)+'". Try a code like P0420 or a word like lean, misfire or EVAP.</div>';
+  return '<h2>'+res.length+' result'+(res.length>1?"s":"")+'</h2>'+res.slice(0,30).map(codeRow).join("");
+}
+function unknownCode(c){
+  var t={P:"powertrain (engine and transmission)",C:"chassis (brakes, steering, suspension)",B:"body (airbags, lighting, comfort)",U:"network communication"}[c[0]];
+  var kind={"0":"generic, defined by the standard","1":"specific to the vehicle maker","2":"generic, defined by the standard","3":"partly generic, partly maker specific"}[c[1]]||"";
+  var v=activeV();
+  return '<div class="card"><div class="bigcode">'+c+'</div><div><strong>Not in the generic code list.</strong></div><div class="muted small">This is a '+t+' code, '+kind+'. '+(c[1]==="1"?"Its meaning and test steps come from the service manual for your exact vehicle"+(v?" ("+esc(vname(v))+")":"")+", once that manual is loaded.":"")+'</div></div>';
+}
+function manualPanel(c,v){
+  var mf=manualFor(v),pf=procFor(c[0],v);
+  var panel='<section class="panel"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center"><span class="eyebrow" style="color:var(--panel-muted)">Service manual</span>';
+  if(pf){
+    return panel+'<span class="pill" style="background:#2c3d49;color:var(--panel-ink)">'+esc(pf.m.label)+'</span></div>'
+     +'<div style="font-family:var(--display);font-size:20px;font-weight:600;line-height:1.25">'+esc(pf.p.title)+'</div>'
+     +'<div class="small muted">'+pf.p.steps.length+' steps, from the manufacturer test procedure</div>'
+     +(pf.fit==="maybe"?'<div class="note">Check that your engine is the 2.4L before using this procedure.</div>':'')
+     +'<button class="btn" data-act="proc" data-code="'+c[0]+'">Open procedure</button></section>';
+  }
+  var why,link="";
+  if(mf&&mf.fit==="no"){why="The imported manual covers the "+esc(mf.m.label)+" only, and this vehicle has a different engine."}
+  else if(mf){
+    why="This code is not imported from the "+esc(mf.m.label)+" manual yet. "+Object.keys(mf.m.procs).length+" codes are imported so far.";
+    if(c[0][0]==="P")link='<a href="'+srcUrl(mf.m,c[0])+'" target="_blank" rel="noopener" style="color:var(--panel-ink);text-decoration:underline">Look for it on lemon-manuals.la</a>';
+  }else{why="No service manual is imported for "+esc(vname(v))+" yet."}
+  return panel+'</div><div class="small" style="color:var(--panel-ink)">'+why+' The next screen has generic steps for this kind of code.</div>'
+   +(link?'<div class="small">'+link+'</div>':'')
+   +'<button class="btn" data-act="livedtc" data-code="'+c[0]+'">Open the manual procedure</button>'
+   +'<button class="btn" style="background:transparent;color:var(--panel-ink);border:1px solid #4a5b67" data-act="proc" data-code="'+c[0]+'">Open generic steps</button></section>';
+}
+function screenDetail(){
+  var c=BYCODE[S.code],v=activeV();
+  var h='<button class="back" data-act="back">'+icon("back")+'Codes</button>';
+  if(!c)return h+unknownCode(S.code);
+  var f=FAM[c[4]],rel=DTC.filter(function(r){return r[4]===c[4]&&r[0]!==c[0]}).slice(0,4);
+  h+='<section class="card"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><div class="bigcode">'+c[0]+'</div><div style="display:flex;gap:6px;flex-wrap:wrap"><span class="pill tag">'+SYSLAB[c[2]]+'</span>'+pill(c[3])+'</div></div>'
+   +'<h2 style="font-size:19px;text-transform:none;letter-spacing:0;color:var(--ink);font-family:var(--display);line-height:1.25">'+esc(c[1])+'</h2>'
+   +'<p style="margin:0">'+esc(f.about)+'</p>'+(f.warn?'<div class="note">'+esc(f.warn)+'</div>':'')
+   +'<div><h2>Common causes</h2><ul class="tight" style="margin-top:6px">'+c[5].split(";").map(function(x){return '<li>'+esc(x)+'</li>'}).join("")+'</ul></div>'
+   +'<div class="small muted">Generic definition. Your vehicle\'s own procedure is below when it is imported.</div></section>';
+  h+=v?manualPanel(c,v):noVeh();
+  if(rel.length)h+='<section class="list"><h2>Related codes</h2>'+rel.map(codeRow).join("")+'</section>';
+  return h;
+}
+function screenProc(){
+  var c=BYCODE[S.proc];if(!c){S.proc=null;return screenCodes()}
+  var v=activeV(),pf=procFor(S.proc,v);
+  if(!pf&&S.procM){var mm=MANUALS.filter(function(x){return x.id===S.procM})[0];if(mm&&mm.procs[S.proc])pf={m:mm,p:mm.procs[S.proc]}}
+  return pf?screenManualProc(c,pf,v):screenGenericProc();
+}
+function notesCard(c,v,marked){
+  var nk=(v?v.id:"none")+":"+c[0];
+  return '<section class="card"><label for="note">Repair notes<textarea id="note" data-key="'+esc(nk)+'" placeholder="What you checked, readings, parts replaced">'+esc(S.notes[nk]||"")+'</textarea></label><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn sec" data-act="mark" data-code="'+c[0]+'" aria-pressed="'+marked+'">'+(marked?"Bookmarked":"Bookmark")+'</button></div></section>';
+}
+function screenManualProc(c,pf,v){
+  var m=pf.m,p=pf.p,key=m.id+":"+c[0],done=S.steps[key]||[],n=p.steps.length,dn=0,i;
+  for(i=0;i<n;i++){if(done[i])dn++}
+  var marked=S.marks.indexOf(c[0])>=0,mf=manualFor(v),fit=(mf&&mf.m.id===m.id)?mf.fit:"none";
+  var fm=S.pfrom==="manuals",h='<button class="back" data-act="'+(fm?"mclose":"backdetail")+'">'+icon("back")+(fm?"Manual":c[0])+'</button>'
+   +'<div><div class="eyebrow">'+esc(m.label)+' · service manual</div><h1 style="font-size:24px;margin-top:2px">'+c[0]+': '+esc(p.title)+'</h1></div>';
+  if(fit==="none"||fit==="no")h+='<div class="note">This procedure is for the '+esc(m.label)+'. Your active vehicle is different, so it may not apply.</div>';
+  else if(fit==="maybe")h+='<div class="note">This manual is for the 2.4L engine. Add your engine on the Vehicle tab to confirm it applies.</div>';
+  h+='<div class="info">Read from the manual page and shortened, with numbers and specifications kept as written. Check the original before a repair. <a href="'+srcUrl(m,c[0])+'" target="_blank" rel="noopener">Open the original page</a></div>';
+  if(p.detection)h+='<section class="card"><h2>When it sets</h2><p style="margin:0">'+esc(p.detection)+'</p></section>';
+  h+='<details class="card"><summary>Possible causes ('+p.causes.length+')</summary><ul class="tight">'+p.causes.map(function(x){return '<li>'+esc(x)+'</li>'}).join("")+'</ul></details>';
+  if(p.notes.length)h+='<details class="card" open><summary>Notes from the manual ('+p.notes.length+')</summary><ul class="tight">'+p.notes.map(function(x){return '<li>'+esc(x)+'</li>'}).join("")+'</ul></details>';
+  h+='<section class="card"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><h2>Steps</h2><span class="small muted" id="mcount">'+dn+' of '+n+' checked</span></div><div role="group" aria-label="Diagnostic steps">';
+  p.steps.forEach(function(s,i){
+    h+='<div class="mstep'+(done[i]?" done":"")+'" id="ms'+(i+1)+'"><button class="mbox" role="checkbox" aria-checked="'+(!!done[i])+'" aria-label="Step '+(i+1)+' checked" data-act="mstep" data-key="'+esc(key)+'" data-i="'+i+'"><span class="box">'+icon("check")+'</span></button>'
+     +'<div class="mbody"><div class="mtext"><span class="num">'+(i+1)+'</span>'+linkSteps(s[0])+'</div>'
+     +(s[1]?'<div class="br y"><b>Yes</b><span>'+linkSteps(s[1])+'</span></div>':'')
+     +(s[2]?'<div class="br n"><b>No</b><span>'+linkSteps(s[2])+'</span></div>':'')+'</div></div>';
+  });
+  h+='</div><button class="btn quiet" data-act="mreset" data-key="'+esc(key)+'">Clear checks</button></section>';
+  h+=notesCard(c,v,marked);
+  return h;
+}
+function screenGenericProc(){
+  var c=BYCODE[S.proc];if(!c){S.proc=null;return screenCodes()}
+  var f=FAM[c[4]],v=activeV(),done=S.steps[c[0]]||[],nk=(v?v.id:"none")+":"+c[0],marked=S.marks.indexOf(c[0])>=0;
+  var n=f.steps.length,dn=f.steps.filter(function(s,i){return done[i]}).length;
+  var h='<button class="back" data-act="backdetail">'+icon("back")+c[0]+'</button>'
+   +'<div><div class="eyebrow">'+SYSLAB[c[2]]+' · generic guidance</div><h1 style="font-size:24px">'+esc(f.n)+' diagnosis</h1><div class="muted small" style="margin-top:4px">'+c[0]+' · '+esc(c[1])+'</div></div>'
+   +'<div class="info">Generic steps for the '+esc(f.n.toLowerCase())+' family of codes. They are not from a service manual for your vehicle, so check specifications before a repair.</div>'
+   +'<section class="card"><div style="display:flex;justify-content:space-between;align-items:center"><h2>Steps</h2><span class="small muted">'+dn+' of '+n+' done</span></div><div role="group" aria-label="Diagnostic steps">'
+   +f.steps.map(function(s,i){return '<button class="step" role="checkbox" aria-checked="'+(!!done[i])+'" data-act="step" data-code="'+c[0]+'" data-i="'+i+'"><span class="box">'+icon("check")+'</span><span><div class="st">'+(i+1)+". "+esc(s[0])+'</div><div class="small muted">'+esc(s[1])+'</div></span></button>'}).join("")+'</div></section>'
+   +'<section class="card"><label for="note">Repair notes<textarea id="note" data-key="'+esc(nk)+'" placeholder="What you checked, readings, parts replaced">'+esc(S.notes[nk]||"")+'</textarea></label><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn sec" data-act="mark" data-code="'+c[0]+'" aria-pressed="'+marked+'">'+(marked?"Bookmarked":"Bookmark")+'</button></div></section>';
+  return h;
+}
+function curManual(){
+  var v=activeV(),mf=manualFor(v);
+  if(S.mid&&S.midFor!==S.active){S.mid=null;S.mpath=[]}
+  if(S.mid){var x=MANUALS.filter(function(k){return k.id===S.mid})[0];if(x)return x}
+  return(mf&&mf.fit!=="no")?mf.m:null;
+}
+function nodeKids(m,n){
+  if(n.dtc)return Object.keys(m.procs).sort().map(function(c){return{t:c+": "+m.procs[c].title,proc:c}});
+  return n.kids||[];
+}
+function walk(m,path){
+  var kids=m.tree,trail=[],n=null;
+  for(var i=0;i<path.length;i++){n=kids[path[i]];if(!n)return null;trail.push(n);kids=nodeKids(m,n)}
+  return{node:n,trail:trail,kids:kids};
+}
+function inApp(m,n){
+  if(n.proc||n.page)return 1;
+  var k=nodeKids(m,n),c=0;for(var i=0;i<k.length;i++)c+=inApp(m,k[i]);return c;
+}
+function nearestUrl(m,trail){for(var i=trail.length-1;i>=0;i--){if(trail[i].url)return trail[i].url}return m.home}
+function pagePath(m,id){
+  function go(kids,idx,tit){
+    for(var i=0;i<kids.length;i++){
+      var n=kids[i];
+      if(n.page===id)return{idx:idx.concat(i),t:tit.concat(n.t)};
+      if(n.kids){var r=go(n.kids,idx.concat(i),tit.concat(n.t));if(r)return r}
+    }
+    return null;
+  }
+  return go(m.tree,[],[]);
+}
+function siteLink(v){
+  if(!v||!v.make)return"";
+  var site={"Mercedes-Benz":"Mercedes Benz",Dodge:"Dodge and Ram",Ram:"Dodge and Ram",Nissan:"Nissan-Datsun"}[v.make]||v.make;
+  return '<div class="small muted"><a href="https://lemon-manuals.la/'+encodeURIComponent(site)+'/" target="_blank" rel="noopener">See '+esc(v.make)+' manuals on lemon-manuals.la</a> (opens a new tab, can be slow).</div>';
+}
+function screenManuals(){
+  if(S.proc&&S.pfrom==="manuals")return screenProc();
+  var v=activeV(),m=curManual(),view=curView();
+  var hd='<div><div class="eyebrow">'+(v?esc(vname(v)):"No vehicle selected")+'</div><h1>Service manual</h1></div>';
+  if(!v)return hd+noVeh();
+  var seg='<div class="seg" role="group" aria-label="Manual source"><button data-act="mview" data-v="live" aria-pressed="'+(view==="live")+'">Live site</button><button data-act="mview" data-v="local" aria-pressed="'+(view==="local")+'">Imported</button></div>';
+  if(view==="live")return hd+seg+liveBody();
+  return hd+seg
+   +(m?'<label for="mq" style="position:absolute;left:-9999px">Search this manual</label><input id="mq" placeholder="Search this manual, like valve clearance" value="'+esc(S.mq)+'">':'')
+   +'<div id="mres" class="list" style="gap:12px">'+manualBody()+'</div>';
+}
+function noManualHtml(v,mf){
+  var h='';
+  if(!v)h+=noVeh();
+  else if(mf&&mf.fit==="no")h+='<div class="info">The imported manual covers the '+esc(mf.m.label)+' only. This vehicle has a different engine.</div>';
+  else h+='<div class="info">No service manual is imported for '+esc(vname(v))+' yet.</div>';
+  h+=siteLink(v);
+  if(MANUALS.length){
+    h+='<h2>Imported manuals</h2>'+MANUALS.map(function(m){
+      return '<div class="card" style="flex-direction:row;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap"><div style="min-width:0"><strong>'+esc(m.label)+'</strong><div class="small muted">'+Object.keys(m.procs).length+' trouble code procedures, '+Object.keys(m.pages||{}).length+' other pages</div></div><button class="btn sec" data-act="mopen" data-m="'+m.id+'">Browse</button></div>';
+    }).join("");
+  }
+  return h;
+}
+function crumbHtml(trail){
+  var h='<nav class="crumbs" aria-label="Section path"><button class="crumb" data-act="mgo" data-d="0">Manual</button>';
+  trail.forEach(function(n,i){
+    h+='<span aria-hidden="true">›</span>'+(i===trail.length-1?'<span class="here" aria-current="page">'+esc(n.t)+'</span>':'<button class="crumb" data-act="mgo" data-d="'+(i+1)+'">'+esc(n.t)+'</button>');
+  });
+  return h+'</nav>';
+}
+function mRow(m,n,i){
+  var cnt=inApp(m,n),hasKids=nodeKids(m,n).length>0;
+  var tag=cnt>0?'<span class="pill sev1">'+((n.proc||n.page)?"In app":cnt+" in app")+'</span>':'<span class="pill tag">Site only</span>';
+  if(n.proc)return '<button class="row" data-act="proc" data-from="manuals" data-m="'+m.id+'" data-code="'+n.proc+'"><span class="code">'+n.proc+'</span><span class="rt">'+esc(m.procs[n.proc].title)+'<div class="small muted">'+m.procs[n.proc].steps.length+' steps</div></span>'+tag+'</button>';
+  return '<button class="row" data-act="mnav" data-i="'+i+'"><span class="rt">'+esc(n.t)+'</span>'+tag+((hasKids||n.page)?'<span class="muted" aria-hidden="true">›</span>':'')+'</button>';
+}
+function pageHtml(m,node){
+  var p=m.pages[node.page],h='<h2 class="sect">'+esc(p.title)+'</h2>';
+  h+='<div class="info">Read from the manual page and shortened, with numbers and specifications kept as written. Check the original before a repair. <a href="'+p.url+'" target="_blank" rel="noopener">Open the original page</a></div>';
+  if(p.summary)h+='<p style="margin:0">'+esc(p.summary)+'</p>';
+  (p.warnings||[]).forEach(function(x){h+='<div class="note">'+esc(x)+'</div>'});
+  if(p.specs&&p.specs.length)h+='<section class="card"><h2>Specifications</h2><div>'+p.specs.map(function(x){return '<div class="spec"><div class="k">'+esc(x.label)+'</div><div class="v">'+esc(x.value)+'</div></div>'}).join("")+'</div></section>';
+  (p.sections||[]).forEach(function(sec,si){
+    if(!sec.steps.length)return;
+    h+='<section class="card"><h2>'+esc(sec.heading)+'</h2><div>'+sec.steps.map(function(t,i){return '<div class="pstep"'+(si===0?' id="ms'+(i+1)+'"':'')+'><span class="num">'+(i+1)+'</span><div>'+linkSteps(t)+'</div></div>'}).join("")+'</div></section>';
+  });
+  return h;
+}
+function stubHtml(m,node,trail){
+  var where=trail.map(function(n){return esc(n.t)}).join(" › "),u=nearestUrl(m,trail);
+  return '<section class="card"><h2 class="sect">'+esc(node.t)+'</h2><div class="small muted">This section is not imported into the app yet. It is part of the manual on lemon-manuals.la.</div><div class="small">Where it is: '+where+'</div>'
+   +'<a class="btn sec" style="display:flex;align-items:center;justify-content:center;text-decoration:none" href="'+u+'" target="_blank" rel="noopener">Open the nearest page on lemon-manuals.la</a></section>';
+}
+function manualBody(){
+  var m=curManual(),v=activeV(),mf=manualFor(v),q=S.mq.trim();
+  if(!m)return noManualHtml(v,mf);
+  var h='';
+  if(!mf||mf.m.id!==m.id||mf.fit==="no")h+='<div class="note">You opened the '+esc(m.label)+' manual. It does not match your active vehicle, so it may not apply.</div>';
+  else if(mf.fit==="maybe")h+='<div class="note">This manual is for the 2.4L engine. Add your engine on the Vehicle tab to confirm it applies.</div>';
+  if(q)return h+searchHtml(m,q);
+  var w=walk(m,S.mpath);
+  if(!w){S.mpath=[];w=walk(m,[])}
+  var node=w.node;
+  if(w.trail.length){
+    h+='<button class="back" data-act="mback">'+icon("back")+esc(w.trail.length>1?w.trail[w.trail.length-2].t:"Manual")+'</button>'+crumbHtml(w.trail);
+  }
+  if(node&&node.page)return h+pageHtml(m,node);
+  if(node&&!w.kids.length)return h+stubHtml(m,node,w.trail);
+  if(node){
+    h+='<h2 class="sect">'+esc(node.t)+'</h2>';
+    if(node.note)h+='<div class="info">'+esc(node.note)+'</div>';
+  }else{
+    h+='<div><strong style="font-size:16px">'+esc(m.label)+'</strong><div class="small muted" style="margin-top:2px">'+Object.keys(m.procs).length+' trouble code procedures and '+Object.keys(m.pages||{}).length+' other pages can be read in the app. The rest of the manual opens on lemon-manuals.la.</div></div>';
+  }
+  h+='<div class="list">'+w.kids.map(function(k,i){return mRow(m,k,i)}).join("")+'</div>';
+  if(node&&node.more)h+='<div class="info">The site lists more sections here than shown. Open it on lemon-manuals.la for the rest.</div>';
+  h+='<div class="small muted"><a href="'+nearestUrl(m,w.trail)+'" target="_blank" rel="noopener">Open '+(node?"this section":"the manual")+' on lemon-manuals.la</a> (a new tab, can be slow)</div>';
+  if(!node){
+    if(S.marks.length)h+='<h2>Bookmarked codes</h2>'+S.marks.map(function(c){return codeRowProc(BYCODE[c])}).join("");
+    var nc=Object.keys(S.notes).filter(function(k){return S.notes[k]&&S.notes[k].trim()});
+    if(nc.length)h+='<h2>Your notes</h2>'+nc.map(function(k){var c=k.split(":")[1],r=BYCODE[c];if(!r)return"";return '<button class="row" data-act="proc" data-code="'+c+'"><span class="code">'+c+'</span><span class="rt">'+esc(S.notes[k].slice(0,80))+'</span></button>'}).join("");
+  }
+  return h;
+}
+function pageSearch(m,q){
+  var words=q.toLowerCase().split(/\s+/).filter(Boolean),out=[];
+  Object.keys(m.pages||{}).forEach(function(id){
+    var p=m.pages[id],items=[];
+    (p.specs||[]).forEach(function(x){items.push(x.label+": "+x.value)});
+    (p.sections||[]).forEach(function(sec){sec.steps.forEach(function(t,i){items.push("Step "+(i+1)+": "+t)})});
+    (p.warnings||[]).forEach(function(x){items.push(x)});
+    var hay=(p.title+" "+(p.summary||"")+" "+items.join(" ")).toLowerCase();
+    if(!words.every(function(w){return hay.indexOf(w)>=0}))return;
+    var best=-1,bs=0;
+    items.forEach(function(t,i){var sc=0,l=t.toLowerCase();words.forEach(function(w){if(l.indexOf(w)>=0)sc++});if(sc>bs){bs=sc;best=i}});
+    out.push({id:id,p:p,snip:best>=0?items[best]:(p.summary||""),path:pagePath(m,id)});
+  });
+  return out;
+}
+function searchHtml(m,q){
+  var pages=pageSearch(m,q),hits=manualSearch(q).filter(function(x){return x.m.id===m.id});
+  var total=pages.length+hits.length;
+  if(!total)return '<div class="info">Nothing in the imported pages matches "'+esc(q)+'". Only sections marked "In app" can be searched.</div>';
+  var h='<h2>'+total+' result'+(total>1?"s":"")+'</h2><div class="list">';
+  pages.forEach(function(x){
+    h+='<button class="row" data-act="mpage" data-m="'+m.id+'" data-path="'+(x.path?x.path.idx.join("."):"")+'"><span class="rt"><strong style="font-weight:600">'+esc(x.p.title)+'</strong><div class="small muted">'+esc(clip(x.snip,120))+'</div></span><span class="pill tag">Page</span></button>';
+  });
+  hits.forEach(function(x){
+    var snip=x.step>=0?"Step "+(x.step+1)+": "+x.p.steps[x.step][0]:x.p.causes[0];
+    h+='<button class="row" data-act="proc" data-from="manuals" data-m="'+x.m.id+'" data-code="'+x.code+'"><span class="code">'+x.code+'</span><span class="rt"><strong style="font-weight:600">'+esc(x.p.title)+'</strong><div class="small muted">'+esc(clip(snip,120))+'</div></span><span class="pill tag">Test</span></button>';
+  });
+  return h+'</div>';
+}
+function codeRowProc(c){return '<button class="row" data-act="proc" data-code="'+c[0]+'"><span class="code">'+c[0]+'</span><span class="rt">'+esc(c[1])+'</span></button>'}
+
+/* ---------- Scan, NHTSA paste, Claude fill ---------- */
+var USE_CLAUDE=false;
+var _smp;
+async function getSample(){
+  if(!USE_CLAUDE)return null;
+  if(_smp!==undefined)return _smp;
+  try{_smp=(window.claude&&await window.claude.use("sample"))||null}catch(e){_smp=null}
+  return _smp;
+}
+function aiErrMsg(e){
+  var c=e&&e.code;
+  if(c==="not_granted"||c==="sampling_disabled"||c==="not_declared"||c==="capability_disabled")return"Claude was not allowed to help here, so choose the details below.";
+  if(c==="rate_limited")return"Claude is busy or at its usage limit right now. Choose the details below, or try again later.";
+  return"Claude could not suggest anything this time. Choose the details below.";
+}
+var VPIC_LABELS={"Make":"Make","Manufacturer Name":"ManufacturerName","Model":"Model","Model Year":"ModelYear","Trim":"Trim","Series":"Series","Body Class":"BodyClass","Doors":"Doors","Drive Type":"DriveType","Displacement (L)":"DisplacementL","Engine Number of Cylinders":"EngineCylinders","Engine Configuration":"EngineConfiguration","Fuel Type - Primary":"FuelTypePrimary","Transmission Style":"TransmissionStyle","Transmission Speeds":"TransmissionSpeeds","Plant City":"PlantCity","Plant State":"PlantState","Plant Country":"PlantCountry","Vehicle Type":"VehicleType","Gross Vehicle Weight Rating From":"GVWR","Engine Brake (hp) From":"EngineHP","Turbo":"Turbo","Electrification Level":"ElectrificationLevel","Engine Model":"EngineModel"};
+function parseVpic(text){
+  var labels=Object.keys(VPIC_LABELS).sort(function(a,b){return b.length-a.length});
+  var lines=String(text||"").split(/\r?\n/).map(function(l){return l.trim()}).filter(Boolean);
+  var which=function(l){
+    var low=l.toLowerCase();
+    for(var i=0;i<labels.length;i++){
+      var lb=labels[i].toLowerCase();
+      if(low.indexOf(lb)===0&&!/[a-z0-9]/.test(low.charAt(lb.length)||" "))return labels[i];
+    }
+    return null;
+  };
+  var out={};
+  for(var i=0;i<lines.length;i++){
+    var lb=which(lines[i]);if(!lb)continue;
+    var val=lines[i].slice(lb.length).replace(/^[\s:|\t-]+/,"").trim();
+    if(!val&&i+1<lines.length&&!which(lines[i+1]))val=lines[i+1];
+    var k=VPIC_LABELS[lb];
+    if(val&&!out[k])out[k]=val;
+  }
+  return out;
+}
+function bestVin(list){
+  var c=[];
+  list.forEach(function(t){var m=String(t||"").toUpperCase().replace(/[\s-]/g,"").match(/[A-HJ-NPR-Z0-9]{17}/g);if(m)c=c.concat(m)});
+  for(var i=0;i<c.length;i++)if(checkDigitOk(c[i]))return c[i];
+  return c[0]||"";
+}
+async function readCodes(file){
+  var found=[],bmp=null;
+  try{bmp=await createImageBitmap(file)}catch(e){}
+  if(bmp&&window.BarcodeDetector){
+    try{
+      var fm=await BarcodeDetector.getSupportedFormats();
+      var want=["qr_code","code_39","code_128","data_matrix","pdf417"].filter(function(f){return fm.indexOf(f)>=0});
+      if(want.length){var det=new BarcodeDetector({formats:want});(await det.detect(bmp)).forEach(function(b){found.push(b.rawValue)})}
+    }catch(e){}
+  }
+  var v=bestVin(found);if(v)return v;
+  if(bmp&&typeof jsQR==="function"){
+    var widths=[1600,1000,600];
+    for(var i=0;i<widths.length&&!v;i++){
+      try{
+        var w=Math.min(widths[i],bmp.width),h=Math.round(bmp.height*w/bmp.width);
+        var cv=document.createElement("canvas");cv.width=w;cv.height=h;
+        var cx=cv.getContext("2d");cx.drawImage(bmp,0,0,w,h);
+        var q=jsQR(cx.getImageData(0,0,w,h).data,w,h,{inversionAttempts:"attemptBoth"});
+        if(q&&q.data)found.push(q.data);
+      }catch(e){}
+      v=bestVin(found);
+    }
+  }
+  return v;
+}
+async function claudeReadVin(file){
+  var sm=await getSample();if(!sm)return"";
+  var lim=await sm.limits().catch(function(){return null});
+  if(!lim||!lim.images)return"";
+  var r=await sm.json('This photo shows a vehicle identification number (VIN): a windshield plate, a door-jamb sticker, a registration or insurance card, or a barcode. Read the 17-character VIN exactly as printed. VINs never contain the letters I, O or Q. Reply with only JSON: {"vin": "<the 17 characters>"} or {"vin": null} if you cannot read all 17 clearly. Do not guess.',{images:[file]});
+  return bestVin([r&&r.vin]);
+}
+async function scanFile(file){
+  if(!file)return;
+  S.busy=true;S.draft=null;S.msg={t:"info",m:"Reading the photo."};render(true);
+  var v="";
+  try{v=await readCodes(file)}catch(e){}
+  if(!v){try{v=await claudeReadVin(file)}catch(e){v=""}}
+  S.busy=false;
+  if(!v){S.msg={t:"err",m:"No VIN found in that photo. Try the barcode or the printed VIN up close, flat and well lit, or type it in."};render(true);return}
+  S.vin=v;S.msg=null;render(true);
+  var b=document.querySelector('[data-act="decode"]');if(b)b.click();
+}
+var AI_FIELD={year:"year",make:"make",model:"model",trim:"trim",disp:"engine",layout:"engine",fuel:"engine",asp:"engine",trans:"transmission",drive:"drive",body:"body"};
+var AI_SRC="Engine and transmission source";
+function addSrcRow(f,text){
+  f.extra=(f.extra||[]).filter(function(r){return r[0]!==AI_SRC}).concat([[AI_SRC,text]]);
+}
+async function aiEnrichVin(r){
+  if(r.disp&&r.layout&&r.fuel&&r.trans&&r.drive&&r.body&&r.model)return;
+  var sm=await getSample();if(!sm)return;
+  r.aiBusy=true;r.aiErr="";if(S.draft===r)render(true);
+  try{
+    var known={year:r.year,make:r.make,model:r.model,trim:r.trim,disp:r.disp,layout:r.layout,fuel:r.fuel,asp:r.asp,trans:r.trans,drive:r.drive,body:r.body};
+    var o=await sm.json("VIN: "+r.vin+"\nAlready known (from a decoder, treat as correct): "+JSON.stringify(known)+"\n\nUsing the VIN and what you know about this exact vehicle, fill in the missing values. Reply with only a JSON object with these keys: year (number), make, model, trim, disp (liters as a string with one decimal, like \"2.4\"), layout (one of "+LAYOUTS.map(function(l){return l[0]}).join(", ")+"), fuel (one of "+FUELS.join(" | ")+"), asp (one of "+ASPS.join(" | ")+"), trans (one of "+TRANS_ALL.join(" | ")+"), drive (one of "+DRIVES.join(" | ")+"), body (one of "+BODIES.join(" | ")+"). Use null for anything you are not confident about. Do not guess.");
+    var filled=[];
+    var set=function(k,v,ok){if(r[k]||v==null||v==="")return;if(!ok(v))return;r[k]=k==="year"?+v:v;filled.push(AI_FIELD[k])};
+    var inList=function(l){return function(v){return l.indexOf(v)>=0}};
+    set("year",o&&o.year,function(v){return +v>=1960&&+v<=new Date().getFullYear()+1});
+    set("make",o&&o.make,function(v){return typeof v==="string"&&v.length<30});
+    set("model",o&&o.model,function(v){return typeof v==="string"&&v.length<40});
+    set("trim",o&&o.trim,function(v){return typeof v==="string"&&v.length<30});
+    set("disp",o&&o.disp,function(v){return /^\d{1,2}\.\d$/.test(String(v))});
+    set("layout",o&&o.layout,inList(LAYOUTS.map(function(l){return l[0]})));
+    set("fuel",o&&o.fuel,inList(FUELS));
+    set("asp",o&&o.asp,inList(ASPS));
+    set("trans",o&&o.trans,inList(TRANS_ALL));
+    set("drive",o&&o.drive,inList(DRIVES));
+    set("body",o&&o.body,inList(BODIES));
+    r.ai=filled.filter(function(x,i){return filled.indexOf(x)===i});
+    if(r.ai.length)addSrcRow(r,"Suggested by Claude from the VIN, not a database. Check it against the car.");
+  }catch(e){r.aiErr=aiErrMsg(e)}
+  r.aiBusy=false;if(S.draft===r)render(true);
+}
+function cfgKey(f){return [f.year,f.make,f.model==="__other"?f.custom:f.model].join("|")}
+function normCfg(o){
+  if(!o||typeof o!=="object")return null;
+  var arr=function(v,list){v=Array.isArray(v)?v:(v==null?[]:[v]);return v.filter(function(x){return list.indexOf(x)>=0})};
+  var d=o.disp==null?"":String(o.disp);if(d&&!/^\d{1,2}\.\d$/.test(d))d="";
+  var lays=LAYOUTS.map(function(l){return l[0]});
+  var l=lays.indexOf(o.layout)>=0?o.layout:"";
+  if(!l&&!d)return null;
+  var f=FUELS.indexOf(o.fuel)>=0?o.fuel:"Gasoline",a=ASPS.indexOf(o.asp)>=0?o.asp:"Naturally aspirated";
+  var lbl=(d?d+"L ":"")+l+(a!=="Naturally aspirated"?" "+a.toLowerCase():"")+(f!=="Gasoline"?" "+f.toLowerCase().replace(/ \(.*\)/,""):"");
+  if(o.trim)lbl+=" · "+String(o.trim).slice(0,24);
+  return{d:d,l:l,f:f,a:a,t:arr(o.trans,TRANS_ALL),dr:arr(o.drive,DRIVES),b:arr(o.body,BODIES),lbl:lbl};
+}
+async function aiOptions(f){
+  var sm=await getSample();if(!sm)return;
+  var key=cfgKey(f);
+  f.aiBusy=true;f.aiErr="";render(true);
+  try{
+    var r=await sm.json("Vehicle: "+f.year+" "+f.make+" "+(f.model==="__other"?f.custom:f.model)+(f.trim?" "+f.trim:"")+".\nList the engine and transmission configurations this model year was sold with in the US market, up to 6. Reply with only a JSON array of objects with these keys: disp (liters as a string with one decimal, like \"2.4\"; null for electric), layout (one of "+LAYOUTS.map(function(l){return l[0]}).join(", ")+"), fuel (one of "+FUELS.join(" | ")+"), asp (one of "+ASPS.join(" | ")+"), trans (an array, each exactly one of "+TRANS_ALL.join(" | ")+"), drive (an array, each one of "+DRIVES.join(" | ")+"), body (an array, each one of "+BODIES.join(" | ")+"), trim (a few words on which trims get it, or null). Only include configurations you are confident existed. Reply [] if unsure.");
+    var seen={},list=[];
+    (Array.isArray(r)?r:[]).forEach(function(o){var c=normCfg(o);if(c&&!seen[c.lbl]){seen[c.lbl]=1;list.push(c)}});
+    if(cfgKey(f)===key){f.cfgs=list;f.cfgsFor=key;f.ci=null}
+  }catch(e){f.aiErr=aiErrMsg(e)}
+  f.aiBusy=false;render(true);
+}
+function aiNote(d){
+  if(d.aiBusy)return'<div class="info">Asking Claude to fill in what the VIN data did not give.</div>';
+  var h="";
+  if(d.ai&&d.ai.length)h+='<div class="info">Claude filled in: '+esc(d.ai.join(", "))+'. This comes from its knowledge of the vehicle, not a database, so check it against the car.</div>';
+  if(d.aiErr)h+='<div class="note">'+esc(d.aiErr)+'</div>';
+  return h;
+}
+function aiBlock(f){
+  var ready=f.year&&f.make&&f.model&&(f.model!=="__other"||f.custom);
+  if(!ready||!USE_CLAUDE)return"";
+  if(f.aiBusy&&!f.vin)return'<div class="info">Asking Claude which engines and transmissions this model year came with.</div>';
+  if(f.vin)return'';
+  var h="";
+  if(f.cfgs&&f.cfgs.length){
+    h+='<div class="small muted">Configurations Claude suggests for this model year. Pick one, then check it against the car.</div><div class="chips">'+f.cfgs.map(function(c,i){return'<button class="chip'+(f.ci===i?" on":"")+'" data-act="pickcfg" data-i="'+i+'">'+esc(c.lbl)+'</button>'}).join("")+'</div>';
+    var c=f.cfgs[f.ci];
+    if(c&&c.t.length>1)h+='<div class="small muted">Transmissions offered with it</div><div class="chips">'+c.t.map(function(t){return'<button class="chip'+(f.trans===t?" on":"")+'" data-act="picktrans" data-t="'+esc(t)+'">'+esc(t)+'</button>'}).join("")+'</div>';
+  }else if(f.cfgsFor===cfgKey(f)&&!f.aiErr)h+='<div class="info">Claude had no confident suggestions for this one. Choose below.</div>';
+  if(f.aiErr)h+='<div class="note">'+esc(f.aiErr)+'</div>';
+  h+='<button class="btn sec" data-act="aifill">'+(f.cfgs?"Ask Claude again":"Suggest engine and transmission")+'</button>';
+  return h;
+}
+
+/* ---------- Live service manual (lemon-manuals.la) ---------- */
+var SITE="https://lemon-manuals.la/";
+var LCACHE={};
+var PROXY="";try{PROXY=localStorage.getItem("garage-proxy")||""}catch(e){}
+function viaProxy(url){
+  if(!PROXY)return url;
+  if(/=$/.test(PROXY))return PROXY+encodeURIComponent(url);
+  return PROXY+(PROXY.indexOf("?")>=0?"&":"?")+"url="+encodeURIComponent(url);
+}
+function makeDir(m){return{"Mercedes-Benz":"Mercedes Benz",Dodge:"Dodge and Ram",Ram:"Dodge and Ram",Nissan:"Nissan-Datsun"}[m]||m}
+function normT(t){return String(t||"").toLowerCase().replace(/[^a-z0-9]/g,"")}
+function segOf(u){var p=new URL(u).pathname.replace(/\/+$/,"").split("/");try{return decodeURIComponent(p[p.length-1])}catch(e){return p[p.length-1]}}
+function blockText(node){
+  var out=[];
+  var BLOCK={P:1,DIV:1,LI:1,TR:1,H1:1,H2:1,H3:1,H4:1,H5:1,H6:1,BR:1,UL:1,OL:1,TABLE:1,SECTION:1,PRE:1,ARTICLE:1,DT:1,DD:1};
+  (function walk(n){
+    if(n.nodeType===3){out.push(n.nodeValue);return}
+    if(n.nodeType!==1)return;
+    var tag=n.tagName;
+    if(tag==="SCRIPT"||tag==="STYLE"||tag==="NOSCRIPT"||tag==="SVG")return;
+    var b=BLOCK[tag];
+    if(b)out.push("\n");
+    if(tag==="TD"||tag==="TH")out.push(" · ");
+    for(var c=n.firstChild;c;c=c.nextSibling)walk(c);
+    if((tag==="TD"||tag==="TH")&&!n.textContent.trim())out.push("\u2205");
+    if(b)out.push("\n");
+  })(node);
+  var lines=out.join("").split("\n").map(function(l){return l.replace(/\s+/g," ").replace(/^[\s·]+/,"").trim()}).filter(Boolean);
+  var res=[];lines.forEach(function(l){if(res[res.length-1]!==l)res.push(l)});
+  return res;
+}
+function parsePage(html,url){
+  var doc=new DOMParser().parseFromString(html,"text/html");
+  var cur=new URL(url),curPath=decodeURI(cur.pathname).replace(/\/+$/,"");
+  var kids=[],seen={};
+  var anchors=[].slice.call(doc.querySelectorAll("a[href]"));
+  var all=[];
+  anchors.forEach(function(a){
+    var u;try{u=new URL(a.getAttribute("href"),url)}catch(e){return}
+    if(u.origin!==cur.origin)return;
+    u.hash="";u.search="";
+    var p=decodeURI(u.pathname).replace(/\/+$/,"");
+    if(p.length<=curPath.length||p.indexOf(curPath+"/")!==0)return;
+    var rest=p.slice(curPath.length+1).split("/").length;
+    var text=a.textContent.replace(/\s+/g," ").trim()||segOf(u.href);
+    var key=u.href;if(seen[key])return;seen[key]=1;
+    all.push({url:u.href,text:text,seg:segOf(u.href),depth:rest,el:a});
+  });
+  var deep=all.filter(function(k){return k.depth>1}).slice(0,8000).map(function(k){return[k.url,k.text]});
+  var direct=all.filter(function(k){return k.depth===1});
+  kids=(direct.length?direct:all);
+  var body=doc.body||doc.documentElement;
+  kids.forEach(function(k){var li=k.el.closest("li");(li||k.el).setAttribute("data-kid","1")});
+  [].slice.call(body.querySelectorAll("[data-kid],header,footer,nav")).forEach(function(n){if(n.parentNode)n.parentNode.removeChild(n)});
+  var raw=blockText(body);
+  var lines=raw.map(function(l){return l.replace(/\s*\u2205/g,"").replace(/[\s\u00b7]+$/,"")}).filter(Boolean);
+  var h1=doc.querySelector("h1");
+  var title=(h1&&h1.textContent.replace(/\s+/g," ").trim())||segOf(url)||"Manual";
+  if(lines[0]===title)lines.shift();if(raw[0]===title)raw.shift();
+  kids=kids.map(function(k){return{url:k.url,text:k.text,seg:k.seg}});
+  return{url:url,title:title,kids:kids,deep:deep,lines:lines.slice(0,600),raw:raw.slice(0,600)};
+}
+async function lfetch(url){
+  if(LCACHE[url])return LCACHE[url];
+  var ctl=new AbortController(),t=setTimeout(function(){ctl.abort()},30000);
+  try{
+    var r=await fetch(viaProxy(url),{signal:ctl.signal});
+    if(!r.ok)throw{code:"http",status:r.status};
+    var pg=parsePage(await r.text(),url);
+    LCACHE[url]=pg;return pg;
+  }finally{clearTimeout(t)}
+}
+function liveErr(e){
+  if(e&&e.code==="http")return e.status===404?"That page was not found on lemon-manuals.la.":"lemon-manuals.la answered with status "+e.status+".";
+  if(e&&e.code==="nomatch")return e.message;
+  return "Could not load lemon-manuals.la from here. The site may be blocking this page, or the connection is down. The connection check on the Vehicle tab shows which.";
+}
+function liveState(){
+  var v=activeV(),L=S.live;
+  if(!L||L.vid!==(v&&v.id)){S.embed=null;S.live=L={vid:v&&v.id,stack:[],choices:null,busy:false,err:"",note:"",pending:null}}
+  return L;
+}
+function defaultView(v){var mf=v?manualFor(v):null;return mf&&mf.fit==="yes"?"local":"live"}
+function curView(){var v=activeV();return S.mview||defaultView(v)}
+function applyVariant(v,seg){
+  var m=/(?:^|[\s_])([LVHW])(\d+)-(\d\.\d)L/i.exec(seg||"");
+  if(!m||(v.disp&&v.layout))return;
+  var l=m[1].toUpperCase();
+  v.disp=m[3];v.layout=l==="L"?"I"+m[2]:l+m[2];
+  v.engine=engineLabel(v);
+}
+async function liveGo(url,stack){
+  var L=liveState(),pg=await lfetch(url);
+  L.stack=stack.concat([{url:url,title:pg.title}]);L.choices=null;L.note="";
+  return pg;
+}
+async function liveChoose(k){
+  var v=activeV(),L=liveState();
+  v.liveRoot=k.url;applyVariant(v,k.seg||k.text);save();
+  await liveGo(k.url,[]);
+  if(L.pending){var c=L.pending;L.pending=null;await liveFindDtc(c)}
+}
+async function liveLoad(){
+  var v=activeV();if(!v)return;
+  var L=liveState();L.busy=true;L.err="";render(true);
+  try{
+    if(v.liveRoot){await liveGo(v.liveRoot,[]);if(L.pending){var c=L.pending;L.pending=null;await liveFindDtc(c)}}
+    else{
+      var yr=await lfetch(SITE+encodeURIComponent(makeDir(v.make))+"/"+v.year+"/");
+      var want=normT(v.model);
+      var ch=yr.kids.filter(function(k){return normT(k.seg).indexOf(want)===0});
+      if(!ch.length)throw{code:"nomatch",message:"lemon-manuals.la has no "+v.year+" "+v.model+" under "+v.make+". Check the model name on the site."};
+      var best=ch.slice();
+      var pick=function(fn){var n=best.filter(fn);if(n.length)best=n};
+      if(v.disp)pick(function(k){return k.seg.indexOf(v.disp)>=0});
+      var charm=best.filter(function(k){return CHARM_RE.test(k.seg)});
+      if(charm.length)best=charm;
+      else if(/auto/i.test(v.trans||""))pick(function(k){return /automatic/i.test(k.seg)});
+      else if(/manual/i.test(v.trans||""))pick(function(k){return /standard|manual/i.test(k.seg)});
+      if(best.length===1)await liveChoose(best[0]);
+      else{L.choices=best;L.stack=[]}
+    }
+  }catch(e){L.err=liveErr(e);if(netErr(e)){S.embed=mkEmbed(v,L.pending);L.err=""}}
+  L.busy=false;render(true);
+}
+function liveAuto(){
+  var v=activeV();if(!v||curView()!=="live")return;
+  var L=liveState();
+  if(!L.busy&&!L.err&&!L.stack.length&&!L.choices)liveLoad();
+}
+function dtcUrl(root){return root+"Repair%20and%20Diagnosis/A%20L%20L%20%20Diagnostic%20Trouble%20Codes%20%28%20DTC%20%29/"}
+function codeMatch(pg,code){
+  var low=code.toLowerCase();
+  var lists=[pg.kids,(pg.deep||[]).map(function(x){return{url:x[0],text:x[1],seg:segOf(x[0])}})];
+  for(var i=0;i<lists.length;i++){
+    var ex=lists[i].filter(function(k){return normT(k.text)===low||normT(k.seg)===low})[0];
+    if(ex)return{k:ex,grouped:false};
+  }
+  var best=null,bx=99;
+  lists.forEach(function(l){l.forEach(function(k){
+    var t=normT(k.text);
+    if(t.length!==low.length||!/x/.test(t))return;
+    var re=new RegExp("^"+t.replace(/x/g,"[0-9a-f]")+"$");
+    var nx=(t.match(/x/g)||[]).length;
+    if(re.test(low)&&nx<bx){best=k;bx=nx}
+  })});
+  return best?{k:best,grouped:true}:null;
+}
+async function liveFindDtc(code){
+  var v=activeV(),L=liveState();
+  if(!v)return;
+  if(!v.liveRoot){L.pending=code;await liveLoad();return}
+  L.busy=true;L.err="";L.note="";render(true);
+  try{
+    var root=v.liveRoot,rp=await lfetch(root),stack=[{url:root,title:rp.title}],hit=null,du=dtcUrl(root),dp=null;
+    try{dp=await lfetch(du)}catch(e){if(e&&e.code!=="http")throw e}
+    if(dp){stack.push({url:du,title:dp.title});hit=codeMatch(dp,code)}
+    if(!hit){
+      var rd=null;
+      try{rd=await lfetch(root+"Repair%20and%20Diagnosis/")}catch(e){if(e&&e.code!=="http")throw e}
+      if(rd){if(!dp)stack.push({url:rd.url,title:rd.title});hit=codeMatch(rd,code)}
+    }
+    if(hit){
+      var leaf=await lfetch(hit.k.url);
+      stack.push({url:hit.k.url,title:leaf.title});
+      L.code=code;L.codeUrl=hit.k.url;
+      L.note=hit.grouped?"This manual covers "+code+" on the grouped page "+hit.k.text+".":"";
+    }else L.note="Code "+code+" was not found in this manual's code list. Pick it from the list below if it is there under another name.";
+    L.stack=stack;L.choices=null;
+  }catch(e){L.err=liveErr(e);if(netErr(e)){S.embed=mkEmbed(v,code);L.err=""}}
+  L.busy=false;render(true);
+}
+function netErr(e){return !(e&&e.code)}
+function layoutCode(v){var l=v.layout||"";if(/^I\d/.test(l))return"L"+l.slice(1);if(/^[VHW]\d/.test(l))return l;return""}
+function yearUrl(v){return SITE+encodeURIComponent(makeDir(v.make))+"/"+v.year+"/"}
+function guessRoot(v){var lc=layoutCode(v);if(!v.disp||!lc)return"";return yearUrl(v)+encodeURIComponent(v.model+" "+lc+"-"+v.disp+"L")+"/"}
+function guessDtc(v,code){
+  var r=v.liveRoot||guessRoot(v);if(!r||!code)return"";
+  return r+"Repair%20and%20Diagnosis/A%20L%20L%20%20Diagnostic%20Trouble%20Codes%20(%20DTC%20)/Testing%20and%20Inspection/"+encodeURIComponent(code[0]+" Code Charts")+"/"+code+"/";
+}
+function mkEmbed(v,code){
+  var d=code&&guessDtc(v,code);
+  if(d)return{url:d,label:"Trouble code "+code,code:code};
+  var r=v.liveRoot||guessRoot(v);
+  return{url:r||yearUrl(v),label:r?"Vehicle manual":"Year list",code:code||""};
+}
+function embedHtml(v){
+  var E=S.embed,rt=v.liveRoot||guessRoot(v);
+  var h='<div class="info">Showing lemon-manuals.la inside the app: '+esc(E.label)+'. Pages the app guesses from the site\'s usual layout may be missing. If you see an error in the frame, tap Year list, find your exact engine there, and save its address below.</div>'
+   +'<div class="chips">'
+   +(rt?'<button class="chip'+(E.url===rt?" on":"")+'" data-act="embed" data-k="root">Vehicle manual</button><button class="chip'+(E.url===rt+"Repair%20and%20Diagnosis/"?" on":"")+'" data-act="embed" data-k="diag">Repair and Diagnosis</button>':'')
+   +'<button class="chip'+(E.url===yearUrl(v)?" on":"")+'" data-act="embed" data-k="year">Year list</button>'
+   +(E.code?'<button class="chip'+(E.label.indexOf("Trouble")===0?" on":"")+'" data-act="embed" data-k="dtc">Code '+esc(E.code)+'</button>':'')
+   +'<button class="chip" data-act="embed" data-k="close">Close frame</button></div>'
+   +'<iframe title="lemon-manuals.la" src="'+esc(E.url)+'" referrerpolicy="no-referrer" sandbox="allow-same-origin allow-scripts allow-forms" style="width:100%;height:68vh;border:1px solid var(--line);border-radius:10px;background:#fff"></iframe>'
+   +'<div class="small muted"><a href="'+esc(E.url)+'" target="_blank" rel="noopener">Open this page in a browser tab</a>, which also lets you copy its address.</div>'
+   +'<details class="vinparts"'+(v.liveRoot?"":" open")+'><summary>Save the right manual address</summary><div class="small muted" style="padding-bottom:8px">'+(v.liveRoot?'Saved for this vehicle. ':'')+'Paste the address of any page inside your vehicle\'s manual, like https://lemon-manuals.la/Ford/2005/Focus%20L4-2.0L/. The app keeps the vehicle part and uses it for the Vehicle manual, Repair and Diagnosis and Code buttons.</div>'
+   +'<label for="embedurl">Page address<input id="embedurl" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="https://lemon-manuals.la/..." value="'+esc(S.embedurl)+'"></label>'
+   +(S.emsg?'<div class="note">'+esc(S.emsg)+'</div>':'')
+   +'<button class="btn sec" data-act="embedset">Save this address</button></details>';
+  return h;
+}
+function parseProc(lines){
+  var p={title:"",detection:"",causes:[],notes:[],steps:[]},sec="",intro=[],cur=null,lastBr="";
+  var hasBranch=lines.some(function(x){return /^(yes|no)\b/i.test(x)||/^\d{1,3} \u00b7 .+ \u00b7 /.test(x)});
+  var heads=[[/^(dtc\s+)?(detection|description|dtc detection condition|detection condition|operation|dtc description)\b/i,"det"],[/^(possible|probable)\s+causes?\b/i,"cause"],[/^causes?:?$/i,"cause"],[/^notes?:?$/i,"note"],[/^(test procedure|diagnostic procedure|procedure|diagnosis|troubleshooting|test steps?)\b/i,"steps"]];
+  for(var i=0;i<lines.length;i++){
+    var l=lines[i];
+    var tm=/^DTC\s+([A-Z][0-9A-Fx]{4})\s*[:\-–]\s*(.+)$/i.exec(l);
+    if(tm){p.title=tm[2].trim();continue}
+    if(l.length<=44){
+      var hit=null;heads.forEach(function(h){if(!hit&&h[0].test(l))hit=h[1]});
+      if(hit){sec=hit;cur=null;continue}
+    }
+    var sm=null;
+    if(sec===""||sec==="steps"||(hasBranch&&/^(step\s+)?1[.):]?\s+\S/i.test(l))){
+      var cells=l.split(" · ").map(function(c){return c==="\u2205"?"":c.trim()});
+      if(cells.length>=3&&/^\d{1,3}$/.test(cells[0]))sm={num:+cells[0],text:cells[1],yes:(cells[2]||"").replace(/^yes\b[\s:.\-]*/i,""),no:(cells[3]||"").replace(/^no\b[\s:.\-]*/i,"")};
+      else{
+        var m2=/^(?:step\s+)?(\d{1,3})[.):]?\s+(.+)$/i.exec(l);
+        if(m2&&!/^(v|volts?|ohms?|mm|in|cm|kpa|psi|rpm|min|sec|seconds?|minutes?|%|°)\b/i.test(m2[2]))sm={num:+m2[1],text:m2[2],yes:"",no:""};
+      }
+    }
+    if(sm){cur=sm;p.steps.push(sm);sec="steps";lastBr="";continue}
+    var b=/^(yes|no)\b[\s:.·\-–]*(.*)$/i.exec(l);
+    if(b&&cur){lastBr=b[1].toLowerCase();cur[lastBr]=(cur[lastBr]?cur[lastBr]+" ":"")+b[2];continue}
+    if(cur){if(lastBr)cur[lastBr]+=" "+l;else cur.text+=" "+l;continue}
+    if(sec==="det")p.detection+=(p.detection?" ":"")+l;
+    else if(sec==="cause")p.causes.push(l);
+    else if(sec==="note")p.notes.push(l);
+    else intro.push(l);
+  }
+  if(!p.notes.length&&intro.length)p.notes=intro.slice(0,6);
+  return p;
+}
+function liveProcHtml(pg,code,p){
+  var v=activeV(),key="live:"+pg.url,done=S.steps[key]||[],n=p.steps.length,dn=0;
+  p.steps.forEach(function(s,i){if(done[i])dn++});
+  var marked=S.marks.indexOf(code)>=0;
+  var h='<div><div class="eyebrow">'+esc(vname(v))+' · service manual</div><h1 style="font-size:24px;margin-top:2px">'+esc(code)+(p.title?': '+esc(p.title):'')+'</h1></div>'
+   +'<div class="info">Read from the manual page on lemon-manuals.la and laid out here. Check the original before a repair. <a href="'+esc(pg.url)+'" target="_blank" rel="noopener">Open the original page</a></div>';
+  if(p.detection)h+='<section class="card"><h2>When it sets</h2><p style="margin:0">'+esc(p.detection)+'</p></section>';
+  if(p.causes.length)h+='<details class="card"><summary>Possible causes ('+p.causes.length+')</summary><ul class="tight">'+p.causes.map(function(x){return'<li>'+esc(x)+'</li>'}).join("")+'</ul></details>';
+  if(p.notes.length)h+='<details class="card" open><summary>Notes from the manual ('+p.notes.length+')</summary><ul class="tight">'+p.notes.map(function(x){return'<li>'+esc(x)+'</li>'}).join("")+'</ul></details>';
+  if(n){
+    h+='<section class="card"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><h2>Steps</h2><span class="small muted" id="mcount">'+dn+' of '+n+' checked</span></div><div role="group" aria-label="Diagnostic steps">';
+    p.steps.forEach(function(s,i){
+      h+='<div class="mstep'+(done[i]?" done":"")+'" id="ms'+s.num+'"><button class="mbox" role="checkbox" aria-checked="'+(!!done[i])+'" aria-label="Step '+s.num+' checked" data-act="mstep" data-key="'+esc(key)+'" data-i="'+i+'"><span class="box">'+icon("check")+'</span></button>'
+       +'<div class="mbody"><div class="mtext"><span class="num">'+s.num+'</span>'+linkSteps(s.text)+'</div>'
+       +(s.yes?'<div class="br y"><b>Yes</b><span>'+linkSteps(s.yes)+'</span></div>':'')
+       +(s.no?'<div class="br n"><b>No</b><span>'+linkSteps(s.no)+'</span></div>':'')+'</div></div>';
+    });
+    h+='</div><button class="btn quiet" data-act="mreset" data-key="'+esc(key)+'">Clear checks</button></section>';
+  }
+  if(!n&&!p.detection&&pg.lines.length)h+='<section class="card"><h2>Details</h2>'+pg.lines.map(function(l){return'<p style="margin:0 0 8px;line-height:1.5">'+esc(l)+'</p>'}).join("")+'</section>';
+  else if(!n&&pg.lines.length)h+='<details class="card"><summary>Page text as written</summary>'+pg.lines.map(function(l){return'<p style="margin:0 0 8px;line-height:1.5">'+esc(l)+'</p>'}).join("")+'</details>';
+  if(n)h+='<details class="card"><summary>Page text as written</summary>'+pg.lines.map(function(l){return'<p style="margin:0 0 8px;line-height:1.5">'+esc(l)+'</p>'}).join("")+'</details>';
+  h+=notesCard([code],v,marked);
+  return h;
+}
+var OPTS={};
+var CHARM_RE=/[LVHW]\d+-\d\.\dL/;
+function parseVariant(seg){
+  var t=String(seg||""),o={d:"",l:"",tr:"",b:""};
+  var m=/([LVHW])(\d+)-(\d\.\d)L/i.exec(t);
+  if(m){o.d=m[3];var c=m[1].toUpperCase();o.l=c==="L"?"I"+m[2]:c+m[2]}
+  else{var m2=/(?:^|[\s,])(\d\.\d)(?=[\s,]|$)/.exec(t);if(m2)o.d=m2[1]}
+  if(/\bautomatic\b/i.test(t))o.tr="Automatic (speeds unknown)";
+  else if(/\b(standard|manual)\b/i.test(t))o.tr="Manual (speeds unknown)";
+  else if(/\bcvt\b/i.test(t))o.tr="CVT";
+  var b=/\d\s*D\s*(Coupe|Sedan|Hatchback|Wagon|Convertible|SUV|Pickup|Van)/i.exec(t);
+  if(b)o.b={coupe:"Coupe",sedan:"Sedan",hatchback:"Hatchback",wagon:"Wagon",convertible:"Convertible",suv:"SUV",pickup:"Pickup",van:"Van or minivan"}[b[1].toLowerCase()];
+  else if(/\bZX[35]\b/.test(t))o.b="Hatchback";
+  else if(/\bZX4\b/.test(t))o.b="Sedan";
+  else if(/\bZXW\b/.test(t))o.b="Wagon";
+  return o;
+}
+async function loadOpts(f){
+  var model=f.model==="__other"?f.custom:f.model;
+  if(!(f.year&&f.make&&model))return;
+  var key=cfgKey(f);
+  if(OPTS[key]!==undefined){f.opts=OPTS[key];return}
+  f.optsBusy=true;render(true);
+  try{
+    var yr=await lfetch(SITE+encodeURIComponent(makeDir(f.make))+"/"+f.year+"/");
+    var want=normT(model);
+    var ks=yr.kids.filter(function(k){return normT(k.seg).indexOf(want)===0});
+    var o=null;
+    if(ks.length){
+      o={disp:[],layouts:[],trans:[],bodies:[],n:ks.length};
+      var pairs=[];
+      ks.forEach(function(k){
+        var pv=parseVariant(k.seg);
+        if(pv.d&&o.disp.indexOf(pv.d)<0)o.disp.push(pv.d);
+        if(pv.l&&o.layouts.indexOf(pv.l)<0)o.layouts.push(pv.l);
+        if(pv.tr&&o.trans.indexOf(pv.tr)<0)o.trans.push(pv.tr);
+        if(pv.b&&o.bodies.indexOf(pv.b)<0)o.bodies.push(pv.b);
+      });
+      o.disp.sort();
+    }
+    OPTS[key]=o;
+    if(cfgKey(f)===key)f.opts=o;
+  }catch(e){}
+  f.optsBusy=false;render(true);
+}
+function dispItems(f){
+  if(f.opts&&f.opts.disp.length)return f.opts.disp.map(function(d){return[d,d+" L"]});
+  return DISP.map(function(d){return[d,d+" L"]});
+}
+function layoutItems(f){
+  if(f.opts&&f.opts.layouts.length){var ls=LAYOUTS.filter(function(l){return f.opts.layouts.indexOf(l[0])>=0});if(ls.length)return ls}
+  return LAYOUTS;
+}
+function transItems(f){
+  var k=known(f);
+  if(k){
+    var sel=k.engines.filter(function(e){return e.d===f.disp&&e.l===f.layout}),list=[];
+    (sel.length?sel:k.engines).forEach(function(e){e.t.forEach(function(t){if(list.indexOf(t)<0)list.push(t)})});
+    if(list.length)return list;
+  }
+  if(f.opts&&f.opts.trans.length)return f.opts.trans;
+  return TRANS_GROUPS;
+}
+function bodyItems(f){return(f.opts&&f.opts.bodies.length)?f.opts.bodies:BODIES}
+function optsNote(f){
+  if(f.optsBusy)return'<div class="small muted">Checking which versions of this model exist.</div>';
+  if(f.opts)return'<div class="small muted">Choices are limited to the versions lemon-manuals.la lists for this model year.</div>';
+  return"";
+}
+function liveBody(){
+  var v=activeV(),L=liveState();
+  if(S.embed)return embedHtml(v);
+  var site='<a href="'+SITE+encodeURIComponent(makeDir(v.make))+'/'+v.year+'/" target="_blank" rel="noopener">Open lemon-manuals.la</a>';
+  if(L.busy)return'<div class="info">Loading from lemon-manuals.la. This can be slow.</div>';
+  var h="";
+  if(L.err)h+='<div class="note">'+esc(L.err)+'</div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn sec" data-act="liveload">Try again</button><button class="btn sec" data-act="embed" data-k="open">Show the site in the app</button></div><div class="small muted">'+site+' in a new tab.</div>';
+  if(L.choices){
+    h+='<h2>Choose your variant</h2><div class="small muted">lemon-manuals.la lists these for a '+esc(v.year+" "+v.make+" "+v.model)+'. Pick the engine your vehicle has.</div><div class="list" style="gap:8px">'
+     +L.choices.map(function(k,i){return'<button class="row" data-act="lpick" data-i="'+i+'"><span class="rt">'+esc(k.text)+'</span></button>'}).join("")+'</div>';
+    return h;
+  }
+  var cur=L.stack[L.stack.length-1];
+  if(!cur){
+    if(!L.err)h+='<button class="btn" data-act="liveload">Load the '+esc(vname(v))+' manual</button><div class="small muted">Pages are fetched from lemon-manuals.la as you open them.</div>';
+    return h;
+  }
+  var pg=LCACHE[cur.url];
+  if(!pg)return h;
+  h+='<div class="small muted" style="word-break:break-word">'+L.stack.map(function(x){return esc(x.title)}).join(" › ")+'</div>';
+  h+='<div style="display:flex;gap:8px;flex-wrap:wrap">'+(L.stack.length>1?'<button class="btn sec" data-act="lback">Back</button>':'')+'<button class="btn sec" data-act="lvariant">Change variant</button><button class="btn sec" data-act="embed" data-k="open">Show the site</button></div>';
+  if(L.note)h+='<div class="info">'+esc(L.note)+'</div>';
+  var pcode=(L.codeUrl===pg.url&&L.code)?L.code:(/^[PBCU][0-9A-F]{4}$/i.test(pg.title.trim())?pg.title.trim().toUpperCase():"");
+  if(pcode)h+=liveProcHtml(pg,pcode,parseProc(pg.raw||pg.lines));
+  else h+='<section class="card"><h2 class="sect">'+esc(pg.title)+'</h2>'
+   +(pg.lines.length?pg.lines.map(function(l){return'<p style="margin:0 0 8px;line-height:1.5">'+esc(l)+'</p>'}).join(""):'<div class="small muted">This page only lists sections below.</div>')+'</section>';
+  if(pg.kids.length)h+='<div class="list" style="gap:8px">'+pg.kids.map(function(k,i){return'<button class="row" data-act="lopen" data-i="'+i+'"><span class="rt">'+esc(k.text)+'</span></button>'}).join("")+'</div>';
+  h+='<div class="small muted"><a href="'+esc(pg.url)+'" target="_blank" rel="noopener">Open this page on lemon-manuals.la</a></div>';
+  return h;
+}
+async function checkConn(){
+  S.conn={busy:true};render(true);
+  var res={};
+  var t=async function(name,url){
+    var c=new AbortController(),id=setTimeout(function(){c.abort()},12000);
+    try{var r=await fetch(url,{signal:c.signal});res[name]=r.ok?"Reachable":"Answered with status "+r.status}
+    catch(e){res[name]="Blocked or offline"}
+    clearTimeout(id);
+  };
+  await t("NHTSA vPIC","https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVinValues/1HGCM82633A004352?format=json");
+  await t(PROXY?"lemon-manuals.la via proxy":"lemon-manuals.la",viaProxy(SITE+"Honda/2003/"));
+  S.conn=res;render(true);
+}
+function connCard(){
+  var c=S.conn,h='<section class="card"><h2>Connection check</h2><div class="small muted">VIN decoding and the live manual both need this page to read NHTSA and lemon-manuals.la. If one says blocked, that feature will not work where you opened the app.</div>';
+  if(c&&c.busy)h+='<div class="info">Checking.</div>';
+  else if(c)h+=Object.keys(c).map(function(k){return'<div class="vp"><span class="k">'+esc(k)+'</span><span class="v">'+esc(c[k])+'</span></div>'}).join("");
+  h+='<button class="btn sec" data-act="conn"'+(c&&c.busy?" disabled":"")+'>Run check</button>';
+  h+='<details class="vinparts"'+(PROXY?"":"")+'><summary>Manual proxy address (optional)</summary><div class="small muted" style="padding-bottom:8px">If lemon-manuals.la blocks the check above, a small relay you control lets the app read its pages and build its own manual screens. Paste its address here, like https://yourname.workers.dev/ . Leave it empty to go without.</div><label for="proxy">Proxy address<input id="proxy" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="https://..." value="'+esc(S.proxyin!==undefined?S.proxyin:PROXY)+'"></label><button class="btn sec" data-act="proxyset">Save proxy</button></details></section>';
+  return h;
+}
+
+/* ---------- Render ---------- */
+function render(keepScroll){
+  var main=document.getElementById("main");
+  main.innerHTML={vehicle:screenVehicle,codes:screenCodes,manuals:screenManuals}[S.tab]();
+  document.getElementById("tabs").innerHTML=[["vehicle","Vehicle"],["codes","Codes"],["manuals","Manuals"]].map(function(t){return '<button class="tab" data-act="goto" data-tab="'+t[0]+'"'+(S.tab===t[0]?' aria-current="page"':"")+'>'+icon(t[0])+'<span>'+t[1]+'</span></button>'}).join("");
+  if(!keepScroll)window.scrollTo(0,0);
+}
+
+/* ---------- Events ---------- */
+document.addEventListener("click",async function(e){
+  var el=e.target.closest("[data-act]");if(!el)return;
+  var a=el.dataset.act,d=el.dataset;
+  if(a==="goto"){S.tab=d.tab;S.msg=null;if(d.tab==="codes"){S.proc=null;S.pfrom=null}else if(S.pfrom==="manuals"&&d.tab!=="manuals"){S.proc=null;S.pfrom=null}render();if(d.tab==="manuals")liveAuto()}
+  else if(a==="mode"){S.mode=d.mode;S.msg=null;render(true)}
+  else if(a==="sample"){S.vin="1HGCM82633A004352";S.msg=null;S.draft=null;render(true);document.getElementById("vin").focus()}
+  else if(a==="decode"){
+    var vv=S.vin.trim().toUpperCase();S.draft=null;
+    if(vv.length!==17){S.msg={t:"err",m:"A VIN has 17 characters. Yours has "+vv.length+"."};render(true);return}
+    if(!/^[A-HJ-NPR-Z0-9]{17}$/.test(vv)){S.msg={t:"err",m:"VINs never use the letters I, O or Q, and only letters and numbers."};render(true);return}
+    S.vin=vv;S.msg=null;S.busy=true;render(true);
+    var r=await decodeVin(vv);S.busy=false;S.draft=r;
+    S.msg=r.src==="online"?{t:"good",m:"Decoded with the NHTSA database."}:{t:"info",m:"The NHTSA database could not be reached, so this read only what the VIN itself holds. Choose the rest below, or paste an NHTSA result. The connection check on the Vehicle tab shows what is blocked."};
+    render(true);
+    loadOpts(r);
+    await aiEnrichVin(r);
+  }
+  else if(a==="savevin"){
+    var veh=buildVehicle(S.draft);
+    if(!veh.year||!veh.make||!veh.model){S.msg={t:"err",m:"Add a year, make and model to save."};render(true);return}
+    S.vehicles=S.vehicles.filter(function(x){return !x.sample});S.vehicles.unshift(veh);S.active=veh.id;S.draft=null;S.vin="";S.msg=null;save();render();
+  }
+  else if(a==="saveymm"){
+    var veh2=buildVehicle(S.ymm);
+    if(!veh2.year||!veh2.make||!veh2.model){S.msg={t:"err",m:"Choose a year, make and model."};render(true);return}
+    S.vehicles=S.vehicles.filter(function(x){return !x.sample});S.vehicles.unshift(veh2);S.active=veh2.id;S.ymm=blankForm();S.msg=null;save();render();
+  }
+  else if(a==="mview"){S.mview=d.v;render();if(d.v==="live")liveAuto()}
+  else if(a==="liveload"){var L1=liveState();L1.err="";await liveLoad()}
+  else if(a==="lpick"){var L2=liveState(),k2=L2.choices&&L2.choices[+d.i];if(k2){L2.busy=true;L2.err="";render(true);try{await liveChoose(k2)}catch(e){L2.err=liveErr(e)}L2.busy=false;render()}}
+  else if(a==="lopen"){var L3=liveState(),cu=L3.stack[L3.stack.length-1],pg3=cu&&LCACHE[cu.url],k3=pg3&&pg3.kids[+d.i];if(k3){L3.busy=true;L3.err="";render(true);try{await liveGo(k3.url,L3.stack)}catch(e){L3.err=liveErr(e)}L3.busy=false;render()}}
+  else if(a==="lback"){var L4=liveState();if(L4.stack.length>1){L4.stack.pop();L4.note="";render()}}
+  else if(a==="lvariant"){var v5=activeV();if(v5){v5.liveRoot="";save();var L5=liveState();L5.stack=[];L5.choices=null;L5.err="";await liveLoad()}}
+  else if(a==="livedtc"){S.tab="manuals";S.mview="live";S.proc=null;S.pfrom=null;render();await liveFindDtc(d.code)}
+  else if(a==="conn"){await checkConn()}
+  else if(a==="proxyset"){
+    var pv=(S.proxyin!==undefined?S.proxyin:PROXY).trim();
+    if(pv&&!/^https:\/\/[^\s]+$/.test(pv)){S.conn={"Proxy":"That is not an https address"};render(true);return}
+    PROXY=pv;try{if(pv)localStorage.setItem("garage-proxy",pv);else localStorage.removeItem("garage-proxy")}catch(e){}
+    LCACHE={};S.live={};S.embed=null;S.proxyin=undefined;S.conn={"Proxy":pv?"Saved. Run the check to test it.":"Removed"};render(true)
+  }
+  else if(a==="embed"){
+    var ve=activeV();
+    if(ve){
+      var code0=(S.embed&&S.embed.code)||"",cur0=S.embed&&S.embed.url,nx=null;
+      if(d.k==="close"){S.embed=null;render(true)}
+      else{
+        if(d.k==="open")nx=mkEmbed(ve,"");
+        else if(d.k==="year")nx={url:yearUrl(ve),label:"Year list",code:code0};
+        else if(d.k==="root")nx={url:ve.liveRoot||guessRoot(ve),label:"Vehicle manual",code:code0};
+        else if(d.k==="diag")nx={url:(ve.liveRoot||guessRoot(ve))+"Repair%20and%20Diagnosis/",label:"Repair and Diagnosis",code:code0};
+        else if(d.k==="dtc"&&code0)nx=mkEmbed(ve,code0);
+        if(nx&&nx.url&&nx.url!==cur0){S.embed=nx;render(true)}
+      }
+    }
+  }
+  else if(a==="embedset"){
+    var vs=activeV(),u9=null;
+    try{u9=new URL(S.embedurl.trim())}catch(e){}
+    var segs=u9?u9.pathname.split("/").filter(Boolean):[];
+    if(!u9||u9.hostname.replace(/^www\./,"")!=="lemon-manuals.la"||segs.length<3){S.emsg="That does not look like a lemon-manuals.la manual page. It should look like https://lemon-manuals.la/Make/Year/Model/.";render(true)}
+    else if(vs){
+      S.emsg="";vs.liveRoot=u9.origin+"/"+segs.slice(0,3).join("/")+"/";
+      var vseg=decodeURIComponent(segs[2]);applyVariant(vs,vseg);save();
+      var c9=(S.embed&&S.embed.code)||"";S.embed=mkEmbed(vs,c9);S.embedurl="";render(true)
+    }
+  }
+  else if(a==="scan"){var inp=document.getElementById("scan");if(inp)inp.click()}
+  else if(a==="aifill"){var fa=formTarget();if(fa)await aiOptions(fa)}
+  else if(a==="pickcfg"){
+    var fc=formTarget(),cf=fc&&fc.cfgs&&fc.cfgs[+d.i];
+    if(cf){fc.ci=+d.i;fc.disp=cf.d;fc.layout=cf.l;fc.fuel=cf.f;fc.asp=cf.a;
+      if(cf.dr.length===1)fc.drive=cf.dr[0];
+      if(cf.b.length===1&&!fc.body)fc.body=cf.b[0];
+      fc.trans=cf.t.length===1?cf.t[0]:(cf.t.indexOf(fc.trans)>=0?fc.trans:"");
+      addSrcRow(fc,"Suggested by Claude for the year, make and model, not a database. Check it against the car.");
+      render(true)}
+  }
+  else if(a==="applypaste"){
+    var px=parseVpic(S.paste),pv=S.vin.length===17?S.vin:bestVin([S.paste]);
+    if(!(px.Make||px.Model||px.DisplacementL||px.BodyClass||px.TransmissionStyle)){S.msg={t:"err",m:"No NHTSA fields found in that text. Copy the whole results table from their page."};render(true);return}
+    if(!pv){S.msg={t:"err",m:"Type the 17-character VIN above too, so it can be saved with the result."};render(true);return}
+    S.vin=pv;S.draft=mapVpic(px,pv);S.msg={t:"good",m:"Read the NHTSA result."};render(true);await aiEnrichVin(S.draft);
+  }
+  else if(a==="pickeng"){var f1=formTarget();if(f1){f1.disp=d.d;f1.layout=d.l;f1.fuel=d.f||"Gasoline";if(!f1.asp)f1.asp="Naturally aspirated";render(true)}}
+  else if(a==="picktrans"){var f2=formTarget();if(f2){f2.trans=d.t;render(true)}}
+  else if(a==="edit"){var av=activeV();if(av){S.editing=av.id;S.eform=formFromVehicle(av);S.msg=null;render();loadOpts(S.eform)}}
+  else if(a==="canceledit"){S.editing=null;S.eform=null;S.msg=null;render()}
+  else if(a==="saveedit"){
+    var ev=buildVehicle(S.eform,S.editing);
+    if(!ev.year||!ev.make||!ev.model){S.msg={t:"err",m:"Choose a year, make and model."};render(true);return}
+    var eid=S.editing;S.vehicles=S.vehicles.map(function(x){return x.id===eid?ev:x});S.editing=null;S.eform=null;S.msg=null;save();render();
+  }
+  else if(a==="switch"){S.active=d.id;S.confirm=null;S.editing=null;S.eform=null;save();render()}
+  else if(a==="remove"){
+    if(S.confirm!==d.id){S.confirm=d.id;render(true);return}
+    S.vehicles=S.vehicles.filter(function(x){return x.id!==d.id});if(S.active===d.id)S.active=S.vehicles[0]?S.vehicles[0].id:null;S.confirm=null;save();render(true);
+  }
+  else if(a==="opencode"){S.tab="codes";S.code=d.code;S.proc=null;S.recent=[d.code].concat(S.recent.filter(function(c){return c!==d.code})).slice(0,6);save();render()}
+  else if(a==="back"){S.code=null;S.proc=null;render()}
+  else if(a==="backdetail"){S.proc=null;render()}
+  else if(a==="proc"){S.code=d.code;S.proc=d.code;S.procM=d.m||null;if(d.from==="manuals"){S.tab="manuals";S.pfrom="manuals"}else{S.tab="codes";S.pfrom=null}render()}
+  else if(a==="step"){var arr=S.steps[d.code]||[];arr[+d.i]=!arr[+d.i];S.steps[d.code]=arr;save();render(true)}
+  else if(a==="mark"){var i=S.marks.indexOf(d.code);if(i>=0)S.marks.splice(i,1);else S.marks.push(d.code);save();render(true)}
+  else if(a==="mstep"){
+    var arr2=S.steps[d.key]||[];arr2[+d.i]=!arr2[+d.i];S.steps[d.key]=arr2;save();
+    var on=!!arr2[+d.i];el.setAttribute("aria-checked",String(on));
+    var row=el.closest(".mstep");if(row)row.classList.toggle("done",on);
+    var tot=document.querySelectorAll(".mstep").length,cnt=0;arr2.forEach(function(x){if(x)cnt++});
+    var cc=document.getElementById("mcount");if(cc)cc.textContent=cnt+" of "+tot+" checked";
+  }
+  else if(a==="mreset"){S.steps[d.key]=[];save();render(true)}
+  else if(a==="mnav"){S.mpath=S.mpath.concat([+d.i]);render()}
+  else if(a==="mback"){S.mpath=S.mpath.slice(0,-1);render()}
+  else if(a==="mgo"){S.mpath=S.mpath.slice(0,+d.d);render()}
+  else if(a==="mopen"){S.mid=d.m;S.midFor=S.active;S.mpath=[];S.mq="";render()}
+  else if(a==="mpage"){S.mid=d.m;S.midFor=S.active;S.mpath=d.path?d.path.split(".").map(Number):[];S.mq="";render()}
+  else if(a==="mclose"){S.proc=null;S.procM=null;S.pfrom=null;render()}
+  else if(a==="goref"){
+    var tg=document.getElementById("ms"+d.n);
+    if(tg){var rm=window.matchMedia&&window.matchMedia("(prefers-reduced-motion: reduce)").matches;tg.scrollIntoView({behavior:rm?"auto":"smooth",block:"center"});tg.classList.remove("flash");void tg.offsetWidth;tg.classList.add("flash")}
+  }
+});
+document.addEventListener("input",function(e){
+  var t=e.target,id=t.id;
+  if(id==="q"){S.q=t.value;document.getElementById("results").innerHTML=resultsHtml(S.q)}
+  else if(id==="mq"){S.mq=t.value;document.getElementById("mres").innerHTML=manualBody()}
+  else if(id==="vin"){S.vin=t.value.toUpperCase();S.draft=null}
+  else if(id==="paste"){S.paste=t.value}
+  else if(id==="embedurl"){S.embedurl=t.value}
+  else if(id==="proxy"){S.proxyin=t.value}
+  else if(id==="fTrim"||id==="fCustom"){var ft=formTarget();if(ft)ft[FIELD[id]]=t.value}
+  else if(id==="note"){S.notes[t.dataset.key]=t.value;save()}
+});
+document.addEventListener("change",function(e){
+  var id=e.target.id,key=FIELD[id];
+  if(id==="scan"){var fl=e.target.files&&e.target.files[0];e.target.value="";scanFile(fl);return}
+  if(!key||id==="fTrim"||id==="fCustom")return;
+  var f=formTarget();if(!f)return;
+  f[key]=e.target.value;
+  if(key==="make"){f.model="";f.custom=""}
+  var idKey=key==="year"||key==="make"||key==="model";
+  if(idKey){f.cfgs=null;f.ci=null;f.cfgsFor="";f.aiErr="";f.opts=null}
+  render(true);
+  var el=document.getElementById(id);if(el)el.focus();
+  if(idKey&&!f.vin&&f.year&&f.make&&f.model&&f.model!=="__other")aiOptions(f);
+  if(idKey&&f.year&&f.make&&f.model&&f.model!=="__other")loadOpts(f);
+});
+document.addEventListener("keydown",function(e){if(e.key==="Enter"&&e.target.id==="vin"){e.preventDefault();var b=document.querySelector('[data-act="decode"]');if(b)b.click()}});
+render();
+</script>
